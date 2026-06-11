@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+venv/
+venv_*/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+
+# Runtime data (use volumes in Docker)
+instance/
+chroma_data/
+uploads/
+sandbox/
+logs/
+
+# Docker build files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Test / local scripts
+test_*.py
+_*.py
+*.bat
+*.zip
+*.tar.gz
