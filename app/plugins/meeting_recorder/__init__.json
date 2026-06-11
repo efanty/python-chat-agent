@@ -1,5 +1,0 @@
-{
-  "plugin_name": "meeting_recorder",
-  "plugin_version": "1.0.0",
-  "plugin_description": "会议录音与转文字 — 在会议过程中录音、保存录音文件、将录音转为文字，供 meeting_minutes 技能总结"
-}
