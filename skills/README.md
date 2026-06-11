@@ -70,6 +70,11 @@ description: <一句话描述（显示在工具列表中）>
 version: 1.0
 author: <作者名>
 requires: <可选：环境变量要求>
+parameters:
+  - name: prompt
+    type: string
+    description: （请编辑补充参数说明）
+    required: true
 ---
 
 # <Skill 标题>
