@@ -1,0 +1,188 @@
+{% macro nav_link(endpoint, text) %}
+<li class="nav-item">
+	<a class="nav-link" href="{{ url_for(endpoint) }}">{{ text }}</a>
+</li>
+{% endmacro %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	{% block head %}
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{ site_name }} - {% block title %}{% endblock %}</title>
+	<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico')}}">  
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+	<link rel="stylesheet" href="{{ url_for('todoism.static', filename='foundation-datepicker.css') }}">
+	{{ bootstrap.load_css() }}
+	<!-- Font Awesome Icons -->
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome.min.css') }}" />
+
+<style>
+    pre {
+        background-color: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        overflow-x: auto;
+    }
+    code {
+        font-family: 'Courier New', monospace;
+    }
+    a {
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline; /* 只在鼠标悬停时显示下划线 */
+    }
+
+    /* 字体回退设置 */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    }
+    
+    /* 其他样式... */
+
+    /* Mobile optimizations */
+    @media (max-width: 768px) {
+        .container {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        .table-responsive {
+            margin-bottom: 15px;
+            border: 1px solid #dee2e6;
+        }
+        .btn {
+            margin-bottom: 5px;
+        }
+        .btn-group .btn {
+            margin-bottom: 0;
+        }
+        .card {
+            margin-bottom: 15px;
+        }
+        .form-control {
+            font-size: 16px; /* Prevents iOS zoom on focus */
+        }
+        h1 { font-size: 1.8rem; }
+        h2 { font-size: 1.6rem; }
+        h3 { font-size: 1.4rem; }
+        h4 { font-size: 1.2rem; }
+        h5 { font-size: 1.1rem; }
+    }
+    
+    @media (max-width: 576px) {
+        .col-md-1, .col-md-2, .col-md-3, .col-md-4, 
+        .col-md-5, .col-md-6, .col-md-7, .col-md-8,
+        .col-md-9, .col-md-10, .col-md-11, .col-md-12 {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .row {
+            margin-left: -5px;
+            margin-right: -5px;
+        }
+        .row > [class*="col-"] {
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+    }
+
+    /* 修复页面内容过多时无法滚动的问题 */
+    html, body {
+        height: 100vh;
+        margin: 0;
+    }
+    main {
+        overflow-y: auto;
+        max-height: calc(100vh - 56px);
+    }
+    
+</style>
+{% endblock %}
+    <!-- CSRF Token for AJAX requests -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+	<!-- Toast notification container -->
+	<div id="toastContainer" style="position:fixed;top:12px;right:12px;z-index:9999"></div>
+	<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+		<div class="container">
+			<a class="navbar-brand" href="{{ url_for('main.index') }}">首页</a>
+			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExample" aria-controls="navbarsExample" aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+			<div class="collapse navbar-collapse" id="navbarsExample">
+				<ul class="navbar-nav mr-auto">
+					
+					
+					{% if current_user.is_authenticated and current_user.is_admin %}
+					<li class="nav-item dropdown">
+						<a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">管理</a>
+						<ul class="dropdown-menu">
+							<li><a class="dropdown-item" href="{{ url_for('admin.dashboard') }}">仪表板</a></li>
+							<li><hr class="dropdown-divider"></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.users') }}">用户管理</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.agents') }}">智能体管理</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.models') }}">LLM模型管理</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.mcp_tools') }}">MCP工具管理</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.api_endpoints') }}">API接口管理</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.skills_list') }}">Skills管理</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.knowledge_bases') }}">RAG知识库管理</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.memories') }}">记忆管理</a></li>
+							<li><hr class="dropdown-divider"></li>
+							<li><a class="dropdown-item" href="{{ url_for('plugin_manager.index') }}">插件设置</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.site_settings') }}">网站设置</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('admin.upgrade') }}">系统升级</a></li>
+						</ul>
+					</li>
+					{% endif %}
+				</ul>
+				<ul class="navbar-nav ml-auto">
+					{% if current_user.is_authenticated %}
+					<li class="nav-item dropdown">
+						<a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">{{ current_user.name or current_user.email }}</a>
+						<ul class="dropdown-menu dropdown-menu-right">
+							<li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">个人资料</a></li>
+							<li><hr class="dropdown-divider"></li>
+							<li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">退出登录</a></li>
+						</ul>
+					</li>
+					{% else %}
+					<li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">登录</a></li>
+					<li class="nav-item"><a class="nav-link" href="{{ url_for('auth.register') }}">注册</a></li>
+					{% endif %}
+				</ul>
+			</div>
+		</div>
+	</nav>
+	<main class="container-fluid px-0">
+		<div class="container my-4">
+			{% with messages = get_flashed_messages(with_categories=true) %}
+				{% if messages %}
+					{% set seen_messages = [] %}
+					{% for category, message in messages %}
+						{% if message not in seen_messages %}
+							{% set _ = seen_messages.append(message) %}
+							<div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+								{{ message }}
+								<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+									<span aria-hidden="true">&times;</span>
+								</button>
+							</div>
+						{% endif %}
+					{% endfor %}
+				{% endif %}
+			{% endwith %}
+			{% block content %}{% endblock %}
+		</div>
+	</main>
+	<footer class="text-center text-muted py-4">
+		<small>© {{ 2025 }} Notes</small>
+	</footer>
+{% block script %}
+{{ bootstrap.load_js() }}
+{% endblock %}
+
+	
+</body>
+</html>

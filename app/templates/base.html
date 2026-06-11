@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site_name }} - {% block title %}{% endblock %}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico')}}"> 
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css')}}" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="{{ url_for('static', filename='css/all.min.css')}}" rel="stylesheet" integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" crossorigin="anonymous" media="print" onload="this.media='all';this.onload=null">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    /* 深色主题下 Placeholder 文字颜色——提高与背景的对比度 */
+    html:not(.light-theme) input::placeholder,
+    html:not(.light-theme) textarea::placeholder,
+    html:not(.light-theme) select::placeholder,
+    html:not(.light-theme) .form-control::placeholder {
+        color: #94a3b8 !important;
+        opacity: 1 !important;
+    }
+    </style>
+    <script>
+    (function(){
+        // Apply saved theme immediately (before page renders)
+        var t=localStorage.getItem('theme')||'dark';
+        var isLight=(t==='light');
+        if(isLight){document.documentElement.classList.add('light-theme')}
+        // Expose toggle function globally
+        window.toggleTheme=function(){
+            var el=document.documentElement;
+            el.classList.toggle('light-theme');
+            var light=el.classList.contains('light-theme');
+            localStorage.setItem('theme',light?'light':'dark');
+            // Update all theme toggle buttons on the page
+            document.querySelectorAll('.btn-theme-toggle i').forEach(function(icn){
+                icn.className=light?'fas fa-sun':'fas fa-moon';
+            });
+        };
+        // Fix button icons on page load (after DOM ready)
+        document.addEventListener('DOMContentLoaded',function(){
+            if(isLight){
+                document.querySelectorAll('.btn-theme-toggle i').forEach(function(icn){icn.className='fas fa-sun'});
+            }
+        });
+    })();
+    </script>
+    <script src="{{ url_for('static', filename='js/marked.min.js')}}" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="toast-container">
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show m-1" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    {% block body %}{% endblock %}
+
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js')}}" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,304 @@
+{% extends 'this_base.html' %}
+{% block title %}插件管理{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <h3 class="mb-3">插件管理</h3>
+    
+    <!-- 上传插件部分 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">上传新插件</h5>
+        </div>
+        <div class="card-body">
+            <form action="{{url_for('plugin_manager.index')}}" method="post" class="form" role="form" enctype="multipart/form-data">
+                <input id="csrf_token" name="csrf_token" type="hidden" value="{{csrf_token()}}">
+                
+                <div class="mb-3">
+                    <label class="form-label">请上传插件压缩包（ZIP格式）</label>
+                    <div class="input-group">
+                        <input class="form-control" id="file" name="file" required type="file" accept=".zip,application/zip">
+                        <button class="btn btn-primary" type="submit" id="submit">上传</button>
+                    </div>
+                    <div class="form-text">
+                        插件ZIP文件必须包含：
+                        <ul class="mb-0">
+                            <li><code>__init__.json</code> - 插件配置文件（必须包含 plugin_name, plugin_version, plugin_description）</li>
+                            <li><code>__init__.py</code> - 插件包文件，用于初始化插件</li>
+                            <li><code>main.py</code> - 插件主文件，实现插件的所有功能</li>
+                            <li>插件文件夹名称必须与 plugin_name 一致</li>
+                            <li>插件成功上传后，需要手动在后台重启应用才能生效。</li>
+                        </ul>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 插件列表部分 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">插件列表</h5>
+        </div>
+        <div class="card-body">
+            {% if plugins %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th width="5%">#</th>
+                            <th width="20%">插件名称</th>
+                            <th width="15%">版本</th>
+                            <th width="30%">描述</th>
+                            <th width="10%">类型</th>
+                            <th width="10%">状态</th>
+                            <th width="10%">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for plugin in plugins %}
+                        <tr >
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                <strong>
+                                    {% if plugin.is_enabled %}
+                                    <a href="/{{ plugin.plugin_name|lower }}" target="_blank" title="访问插件">
+                                        {{ plugin.plugin_name }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted" title="插件未启用，无法访问">
+                                        {{ plugin.plugin_name }}
+                                    </span>
+                                    {% endif %}
+                                </strong>
+                                {% if plugin.is_core %}
+                                <span class="badge badge-info ms-1">基础</span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ plugin.plugin_version }}</code></td>
+                            <td>{{ plugin.plugin_description }}</td>
+                            <td>
+                                {% if plugin.is_core %}
+                                <span class="badge badge-info">基础插件</span>
+                                {% else %}
+                                <span class="badge badge-secondary">用户插件</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if plugin.is_core %}
+                                <span class="badge badge-success">已启用</span>
+                                {% else %}
+                                    {% if plugin.is_enabled %}
+                                    <span class="badge badge-success">已启用</span>
+                                    {% else %}
+                                    <span class="badge badge-warning">已停用</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <!-- 查看详情按钮 -->
+                                    <button type="button" class="btn btn-outline-info btn-sm" 
+                                            onclick="showPluginInfo('{{ plugin.plugin_name }}')" 
+                                            title="查看详情">
+                                        <i class="fa fa-info"></i>
+                                    </button>
+                                    
+                                    {% if not plugin.is_core %}
+                                        <!-- 启用/停用按钮 -->
+                                        {% if plugin.is_enabled %}
+                                        <button type="button" class="btn btn-outline-warning btn-sm" 
+                                                onclick="togglePlugin('{{ plugin.plugin_name }}', 'disable')" 
+                                                title="停用插件">
+                                            <i class="fa fa-pause"></i>
+                                        </button>
+                                        {% else %}
+                                        <button type="button" class="btn btn-outline-success btn-sm" 
+                                                onclick="togglePlugin('{{ plugin.plugin_name }}', 'enable')" 
+                                                title="启用插件">
+                                            <i class="fa fa-play"></i>
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <!-- 删除按钮 -->
+                                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                onclick="deletePlugin('{{ plugin.plugin_name }}')" 
+                                                title="删除插件">
+                                            <i class="fa fa-remove"></i>
+                                        </button>
+                                    {% else %}
+                                        <!-- 基础插件不可操作 -->
+                                        <button type="button" class="btn btn-outline-danger btn-sm" disabled title="基础插件不可操作">
+                                            <i class="fa fa-lock"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                暂无插件。请上传插件压缩包。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 插件详情模态框 -->
+<div class="modal fade" id="pluginInfoModal" tabindex="-1" aria-labelledby="pluginInfoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pluginInfoModalLabel">插件详情</h5>
+                <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close"><i class="fa fa-remove"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="pluginInfoContent">
+                    <!-- 插件详情内容将通过JavaScript动态加载 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+// 显示插件详情
+function showPluginInfo(pluginName) {
+    fetch(`/plugin_manager/info/${pluginName}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const plugin = data.plugin;
+                let html = `
+                    <h5>${plugin.plugin_name} <span class="badge ${plugin.is_core ? 'bg-info' : 'bg-secondary'}">${plugin.is_core ? '基础插件' : '用户插件'}</span></h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>版本:</strong> ${plugin.plugin_version}</p>
+                            <p><strong>描述:</strong> ${plugin.plugin_description}</p>
+                            <p><strong>状态:</strong> <span class="badge ${plugin.is_enabled ? 'bg-success' : 'bg-warning'}">${plugin.is_enabled ? '已启用' : '已停用'}</span></p>
+                            <p><strong>类型:</strong> ${plugin.is_core ? '基础插件（不可删除/停用）' : '用户插件'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>文件结构:</strong></p>
+                            <div style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                <ul class="mb-0">
+                `;
+                
+                if (plugin.files && plugin.files.length > 0) {
+                    plugin.files.forEach(file => {
+                        html += `<li><code>${file}</code></li>`;
+                    });
+                } else {
+                    html += `<li>暂无文件信息</li>`;
+                }
+                
+                html += `
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('pluginInfoContent').innerHTML = html;
+                const modal = new bootstrap.Modal(document.getElementById('pluginInfoModal'));
+                modal.show();
+            } else {
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('获取插件信息失败');
+        });
+}
+
+// 启用/停用插件
+function togglePlugin(pluginName, action) {
+    if (!confirm(`确定要${action === 'enable' ? '启用' : '停用'}插件 "${pluginName}" 吗？`)) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('plug', pluginName);
+    formData.append('action', action);
+    formData.append('csrf_token', document.getElementById('csrf_token').value);
+    
+    fetch('/plugin_manager/toggle', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // 重新加载页面
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('操作失败');
+    });
+}
+
+// 删除插件
+function deletePlugin(pluginName) {
+    if (!confirm(`确定要删除插件 "${pluginName}" 吗？此操作不可撤销！`)) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('plug', pluginName);
+    formData.append('csrf_token', document.getElementById('csrf_token').value);
+    
+    fetch('/plugin_manager/remove', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else {
+            return response.text().then(text => {
+                try {
+                    return JSON.parse(text);
+                } catch {
+                    return { success: false, message: '未知错误' };
+                }
+            });
+        }
+    })
+    .then(data => {
+        if (data && !data.success) {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('删除失败');
+    });
+}
+</script>
+
+<style>
+.table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.075);
+}
+.badge {
+    font-size: 0.75em;
+}
+.btn-group-sm > .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+</style>
+{% endblock %}

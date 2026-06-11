@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}对话{% endblock %}
+{% block extra_head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+{% block body %}
+<div class="chat-container">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span class="brand"><i class="fas fa-robot"></i> {{ site_name }}</span>
+            <div class="sidebar-header-actions">
+                <button class="btn btn-sm btn-outline-light" onclick="showSearchModal()" title="搜索对话"><i class="fas fa-search"></i></button>
+                <button class="btn btn-sm btn-primary" onclick="newConversation()" title="新对话"><i class="fas fa-plus"></i></button>
+            </div>
+        </div>
+        <div class="conv-list" id="convList">
+            {% for conv in conversations %}
+            <div class="conv-item {% if current_conv and current_conv.id == conv.id %}active{% endif %}" data-id="{{ conv.id }}" onclick="loadConversation({{ conv.id }})">
+                <span class="conv-title">{{ conv.title or '新对话' }}</span>
+                <span class="conv-actions">
+                    <button class="btn btn-sm btn-outline-light" onclick="event.stopPropagation();renameConversation({{ conv.id }})" title="重命名"><i class="fas fa-pen"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();deleteConversation({{ conv.id }})" title="删除"><i class="fas fa-trash"></i></button>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <i class="fas fa-user-circle"></i>
+                <span>{{ current_user.nickname or current_user.username }}</span>
+                <span class="badge badge-role {{ current_user.role }} ms-1">{{ current_user.role_name }}</span>
+                <a href="{{ url_for('auth.profile') }}" class="btn btn-sm btn-outline-light ms-auto me-1" title="设置"><i class="fas fa-cog"></i></a>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-warning me-1" title="后台管理"><i class="fas fa-tachometer-alt"></i></a>
+                {% endif %}
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-danger" title="退出"><i class="fas fa-sign-out-alt"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Chat Area -->
+    <div class="main-area">
+        <div class="chat-header">
+            <button class="btn btn-sm btn-outline-light" id="sidebarToggle" title="切换侧边栏"><i class="fas fa-bars"></i></button>
+            <select id="agentSelect" class="form-select form-select-sm" style="width:auto;min-width:140px;" onchange="updateAgentDesc();updatePreferences()">
+                <option value="">选择智能体</option>
+                {% for agent in agents %}
+                <option value="{{ agent.id }}" {% if current_conv and current_conv.agent_id == agent.id %}selected{% elif not current_conv and current_user.preferred_agent_id == agent.id %}selected{% endif %} data-description="{{ agent.description|e }}">{{ agent.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="modelSelect" class="form-select form-select-sm" style="width:auto;min-width:140px;" onchange="updatePreferences()">
+                <option value="">选择模型</option>
+                {% for model in models %}
+                <option value="{{ model.id }}" {% if current_conv and current_conv.model_id == model.id %}selected{% elif not current_conv and current_user.preferred_model_id == model.id %}selected{% endif %}>{% if model.model_type == 'multimodal' %}🖼️ {% endif %}{{ model.name }}{% if model.supports_vision %} 📷{% endif %}</option>
+                {% endfor %}
+            </select>
+            <span id="agentDesc" class="agent-desc ms-2"></span>
+            <button id="exportBtn" class="btn btn-sm btn-outline-light ms-auto" onclick="exportConversation()" title="导出为HTML"{% if not current_conv %} style="display:none;"{% endif %}><i class="fas fa-download"></i></button>
+            <button class="btn-theme-toggle" onclick="toggleTheme()" title="切换主题" id="themeToggle"><i class="fas fa-moon"></i></button>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            {% if current_conv %}
+                {% for msg in current_conv.messages.all() %}
+                <div class="message-row {{ msg.role }}">
+                    <div class="message-bubble">
+                        {% if msg.content_type == 'file' and msg.file_name %}
+                        <div class="mb-1 file-attachment-badge"><i class="fas fa-paperclip"></i> {{ msg.file_name }}</div><br/>
+                        {% endif %}
+                        {% if msg.role == 'assistant' %}
+                        <div class="markdown-body">{{ msg.content|markdown|safe }}</div>
+                        {% else %}
+                        <div>{{ msg.content }}</div>
+                        {% endif %}
+                        <div class="message-meta">
+                            <span class="message-time">{{ msg.created_at.strftime('%Y-%m-%d %H:%M') if msg.created_at else '' }}</span>
+                            {% if msg.role == 'assistant' and msg.token_count and msg.token_count > 0 %}
+                            <span class="msg-usage">{{ msg.input_tokens or 0 }}+{{ msg.output_tokens or 0 }} tokens{% if msg.cost and msg.cost > 0 %} · ¥{{ '%.4f'|format(msg.cost) }}{% endif %}</span>
+                            {% endif %}
+                            <button class="btn-copy" onclick="copyMsg(this)" title="复制"><i class="fas fa-copy"></i></button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="text-center text-muted" style="padding-top: 100px;">
+                <i class="fas fa-robot" style="font-size:3rem;"></i>
+                <p class="mt-3">选择智能体和模型，开始对话</p>
+                {% if agents|length == 0 or models|length == 0 %}
+                <div class="alert alert-warning d-inline-block mt-3" style="max-width:400px;text-align:left;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    {% if agents|length == 0 and models|length == 0 %}
+                    系统尚未配置智能体和LLM模型，请先到<a href="{{ url_for('admin.dashboard') }}" class="alert-link">管理后台</a>添加。
+                    {% elif agents|length == 0 %}
+                    系统尚未配置智能体，请先到<a href="{{ url_for('admin.dashboard') }}" class="alert-link">管理后台</a>添加。
+                    {% elif models|length == 0 %}
+                    系统尚未配置LLM模型，请先到<a href="{{ url_for('admin.dashboard') }}" class="alert-link">管理后台</a>添加。
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        </div>
+
+        <div class="chat-input-area">
+            <form id="chatForm" onsubmit="sendMessage(event)">
+                <input type="hidden" name="conversation_id" id="convIdInput" value="{{ current_conv.id if current_conv else '' }}">
+                <input type="file" id="fileInput" name="file" style="display:none;" accept=".txt,.pdf,.png,.jpg,.jpeg,.gif,.csv,.json,.xml,.py,.js,.html,.css,.md,.xlsx,.xlsm,.docx,.pptx" multiple>
+                <button type="button" class="btn btn-file" onclick="document.getElementById('fileInput').click()" title="发送文件"><i class="fas fa-paperclip"></i></button>
+                <span id="fileAttachment" class="file-attachment" style="display:none;"></span>
+                <button type="button" id="voiceInputBtn" class="btn btn-voice" onclick="toggleVoiceInput()" title="语音输入"><i class="fas fa-microphone"></i></button>
+                <textarea id="messageInput" name="content" placeholder="输入消息... (Enter发送，Shift+Enter换行)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage(event);}"></textarea>
+                <button type="submit" class="btn btn-send"><i class="fas fa-paper-plane"></i> 发送</button>
+                <button type="button" id="ttsToggleBtn" class="btn btn-tts" onclick="toggleTTS()" title="语音播报开关"><i class="fas fa-volume-up"></i></button>
+                <button type="button" id="voiceSettingsBtn" class="btn btn-sm btn-outline-light" onclick="toggleVoiceSettings()" title="语音设置" style="display:none;"><i class="fas fa-cog"></i></button>
+            </form>
+            <!-- 语音波形可视化 -->
+            <div id="voiceWaveform" class="voice-waveform" style="display:none;">
+                <canvas id="waveformCanvas" width="400" height="40"></canvas>
+            </div>
+            <!-- 语音设置面板 -->
+            <div id="voiceSettingsPanel" class="voice-settings-panel" style="display:none;">
+                <div class="voice-settings-row">
+                    <label>TTS 语音：</label>
+                    <select id="ttsVoiceSelect" onchange="ttsVoiceName=this.value"></select>
+                </div>
+                <div class="voice-settings-row">
+                    <label>语速：</label>
+                    <select id="ttsRateSelect" onchange="ttsRate=this.value">
+                        <option value="-50%">慢速</option>
+                        <option value="-25%">较慢</option>
+                        <option value="+0%" selected>正常</option>
+                        <option value="+25%">较快</option>
+                        <option value="+50%">快速</option>
+                    </select>
+                </div>
+                <div class="voice-settings-row">
+                    <label>语调：</label>
+                    <div class="voice-slider-group">
+                        <input type="range" id="ttsPitchSlider" class="voice-slider" min="-50" max="50" value="0" step="5"
+                               oninput="updatePitchLabel(this.value)">
+                        <span id="ttsPitchLabel" class="voice-slider-label">正常</span>
+                    </div>
+                </div>
+                <div class="voice-settings-row">
+                    <label>音色：</label>
+                    <select id="ttsStyleSelect" onchange="ttsStyle=this.value">
+                        <option value="general">普通</option>
+                    </select>
+                </div>
+                <div class="voice-settings-row">
+                    <label>静音灵敏度：</label>
+                    <select id="silenceSensitivity" onchange="updateSilenceThreshold(this.value)">
+                        <option value="0.04">低（安静环境）</option>
+                        <option value="0.02" selected>中（默认）</option>
+                        <option value="0.01">高（嘈杂环境）</option>
+                    </select>
+                </div>
+                <div class="voice-settings-row">
+                    <label>自动语音模式：</label>
+                    <label class="switch">
+                        <input type="checkbox" id="autoVoiceModeToggle" onchange="isAutoVoiceMode=this.checked">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <div class="voice-settings-row" style="margin-top:4px;width:100%;justify-content:flex-end;">
+                    <button type="button" class="btn btn-sm btn-outline-light" onclick="testTTS()" title="用当前设置试听语音效果">
+                        <i class="fas fa-play-circle"></i> 测试语音
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Jinja2 template variables initialization ──
+let convId = {{ current_conv.id if current_conv else 'null' }};
+window.CHAT_URLS = {
+    new_conversation: "{{ url_for('chat.new_conversation') }}",
+    stream_message: "{{ url_for('chat.stream_message') }}",
+    user_settings: "{{ url_for('chat.user_settings') }}",
+    search_conversations: "{{ url_for('chat.search_conversations') }}",
+    speech_to_text: "{{ url_for('chat.speech_to_text') }}",
+    text_to_speech_route: "{{ url_for('chat.text_to_speech_route') }}",
+    text_to_speech_stream_route: "{{ url_for('chat.text_to_speech_stream_route') }}",
+    tts_voices: "{{ url_for('chat.tts_voices') }}",
+    tts_styles: "{{ url_for('chat.tts_styles') }}"
+};
+window.ttsVoiceName = 'zh-CN-XiaoxiaoNeural';
+window.ttsEnabled = false;
+</script>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+
+<!-- Search Modal -->
+<div class="search-modal" id="searchModal">
+    <div class="search-modal-content">
+        <div class="search-modal-header">
+            <h5><i class="fas fa-search"></i> 搜索对话</h5>
+            <button class="btn btn-sm btn-outline-light" onclick="closeSearchModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="search-modal-body">
+            <div class="search-input-wrapper">
+                <i class="fas fa-search search-input-icon"></i>
+                <input type="text" id="searchInput" class="search-input"
+                       placeholder="输入关键词，回车搜索..." autocomplete="off"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();performSearch();}">
+            </div>
+            <div id="searchResults" class="search-results"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+<div class="card shadow-sm mb-2 item" data-href="{{ url_for('.edit_item', item_id=item.id) }}"
+     data-id="{{ item.id }}" data-body="{{ item.body }}" data-done="{{ item.done|tojson }}"
+     data-due-date="{{ item.due_date.strftime('%Y-%m-%d') if item.due_date else '' }}">
+    <div class="card-body d-flex justify-content-between align-items-center">
+        <div class="item-body flex-grow-1 d-flex justify-content-between align-items-center">
+            <div>
+                <a class="btn btn-link text-decoration-none done-btn" data-href="{{ url_for('.toggle_item', item_id=item.id) }}">
+                    <i class="fa fa-fw {% if item.done %}fa-check-square{% else %}fa-square{% endif %}" aria-hidden="true"></i>
+                </a>
+                <span class="ms-2 {% if item.done %}text-muted text-decoration-line-through{% else %}text-dark{% endif %}"
+                      id="body{{ item.id }}">{{ item.body }}</span>
+            </div>
+            {% if item.due_date %}
+            <span class="badge {% if not item.done and item.due_date < now.date() %}bg-danger{% else %}bg-primary{% endif %}">
+                截止: {{ item.due_date.strftime('%Y-%m-%d') }}
+            </span>
+            {% endif %}
+        </div>
+        <div class="edit-btns d-none">
+            <a class="btn btn-link text-decoration-none edit-btn" title="Edit">
+                <i class="fa fa-edit"></i>
+            </a>
+            <a class="btn btn-link text-decoration-none delete-btn" data-href="{{ url_for('.delete_item', item_id=item.id) }}" title="Delete">
+                <i class="fa fa-trash"></i>
+            </a>
+        </div>
+    </div>
+</div>

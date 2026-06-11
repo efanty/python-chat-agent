@@ -1,0 +1,33 @@
+# ── 环境变量/密钥 ──
+.env
+*.key
+*.pem
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+*.egg
+dist/
+build/
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── 运行时数据 ──
+instance/*.db
+chroma_data/
+uploads/*
+!uploads/.gitkeep
+sandbox/*.py
+sandbox/*.txt
+
+# ── 系统 ──
+.DS_Store
+Thumbs.db

@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}403 - Forbidden REQUEST{% endblock %}
+{% block body %}
+<div class="auth-wrapper">
+    <div class="auth-card text-center">
+        <div style="font-size:5rem;color:var(--primary);">403</div>
+        <h4>Forbidden</h4>
+        <p class="small">Forbidden Operation! 禁止的操作！</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary"><i class="fas fa-home"></i> 返回首页</a>
+    </div>
+</div>
+{% endblock %}
+

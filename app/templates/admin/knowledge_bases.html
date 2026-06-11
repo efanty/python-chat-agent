@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}RAG知识库管理{% endblock %}
+{% block body %}
+<div class="admin-wrapper">
+    <div class="admin-sidebar" id="adminSidebar">
+        <div class="brand">
+            <i class="fas fa-tachometer-alt"></i> 管理后台
+            <button class="btn-theme-toggle ms-2" onclick="toggleTheme()" title="切换主题"><i class="fas fa-moon"></i></button>
+        </div>
+        <div class="admin-nav">
+            <div class="nav-section">概览</div>
+            <a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-home"></i> 控制面板</a>
+            <div class="nav-section">用户与权限</div>
+            <a href="{{ url_for('admin.users') }}"><i class="fas fa-users"></i> 用户管理</a>
+            <div class="nav-section">AI 配置</div>
+            <a href="{{ url_for('admin.agents') }}"><i class="fas fa-robot"></i> 智能体管理</a>
+            <a href="{{ url_for('admin.models') }}"><i class="fas fa-microchip"></i> LLM模型管理</a>
+            <a href="{{ url_for('admin.mcp_tools') }}"><i class="fas fa-tools"></i> MCP工具管理</a>
+            <a href="{{ url_for('admin.api_endpoints') }}"><i class="fas fa-plug"></i> API接口管理</a>
+            <a href="{{ url_for('admin.skills_list') }}"><i class="fas fa-puzzle-piece"></i> Skills管理</a>
+            <a href="{{ url_for('admin.knowledge_bases') }}" class="active"><i class="fas fa-database"></i> RAG知识库</a>
+            <a href="{{ url_for('admin.memories') }}"><i class="fas fa-brain"></i> 记忆管理</a>
+            <a href="{{ url_for('plugin_manager.index') }}"><i class="fas fa-brain"></i> 插件管理</a>
+            <div class="nav-section">安全</div>
+            <a href="{{ url_for('admin.blocked_ips') }}"><i class="fas fa-shield-alt"></i> IP封禁管理</a>
+            <div class="nav-section">系统</div>
+
+            <a href="{{ url_for('admin.site_settings') }}"><i class="fas fa-sliders-h"></i> 网站设置</a>
+            <a href="{{ url_for('admin.upgrade') }}"><i class="fas fa-sync-alt"></i> 系统升级</a>
+            <div class="nav-section">快捷操作</div>
+            <a href="{{ url_for('chat.index') }}"><i class="fas fa-comments"></i> 返回对话</a>
+            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> 退出登录</a>
+        </div>
+    </div>
+    <div class="admin-overlay" id="adminOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
+    <div class="admin-main">
+        <div class="d-flex align-items-center mb-3">
+            <button class="btn btn-sm btn-outline-light d-md-none me-2" id="adminSidebarToggle"><i class="fas fa-bars"></i></button>
+            <h4 class="mb-0 me-auto">RAG知识库管理</h4>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addKbModal"><i class="fas fa-plus"></i> 添加知识库</button>
+        </div>
+        <p class="text-muted small mb-3">使用 Chroma 向量数据库存储知识库，支持语义检索。需要先添加 Embedding 类型的 LLM 模型。</p>
+        <div class="table-responsive">
+            <table class="table admin-table">
+                <thead><tr><th>ID</th><th>名称</th><th>Collection</th><th>Embedding模型</th><th>向量数</th><th>文件数</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for kb in knowledge_bases %}
+                <tr>
+                    <td>{{ kb.id }}</td>
+                    <td>{{ kb.name }}</td>
+                    <td><code>{{ kb.collection_name }}</code></td>
+                    <td>{{ kb.embedding_model.name if kb.embedding_model else '-' }}</td>
+                    <td>{{ kb.document_count }}</td>
+                    <td>{{ kb.files.count() }}</td>
+                    <td>{% if kb.is_active %}<span class="text-success">启用</span>{% else %}<span class="text-danger">禁用</span>{% endif %}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#uploadKbModal{{ kb.id }}" title="上传文档"><i class="fas fa-upload"></i></button>
+                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#filesKbModal{{ kb.id }}" title="查看文件"><i class="fas fa-file-alt"></i></button>
+                        <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editKbModal{{ kb.id }}"><i class="fas fa-edit"></i></button>
+                        <form method="POST" action="{{ url_for('admin.knowledge_base_delete', kb_id=kb.id) }}" style="display:inline;" onsubmit="return confirm('确定删除知识库及其所有文件？')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button></form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin.knowledge_bases', page=pagination.prev_num, per_page=pagination.per_page) }}" aria-label="Previous">&laquo;</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.knowledge_bases', page=page_num, per_page=pagination.per_page) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin.knowledge_bases', page=pagination.next_num, per_page=pagination.per_page) }}" aria-label="Next">&raquo;</a>
+                </li>
+            </ul>
+            <p class="text-muted text-center small mb-0">共 {{ pagination.total }} 条记录，每页 {{ pagination.per_page }} 条</p>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========== Per-KB Modals (outside table) ========== -->
+{% for kb in knowledge_bases %}
+<!-- Upload KB Modal -->
+<div class="modal fade" id="uploadKbModal{{ kb.id }}" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form method="POST" action="{{ url_for('admin.knowledge_base_upload', kb_id=kb.id) }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-header"><h5 class="modal-title">上传文档到「{{ kb.name }}」</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2"><label class="form-label">选择文件（支持 TXT / MD / PDF / DOCX / PPTX 等）</label><input type="file" name="file" class="form-control" required accept=".txt,.md,.csv,.json,.xml,.py,.js,.html,.css,.yaml,.yml,.ini,.cfg,.log,.sh,.bat,.sql,.pdf,.docx,.pptx"></div>
+                <div class="mb-2"><label class="form-label">分段大小（字符数）</label><input type="number" name="chunk_size" class="form-control" value="500" min="100" max="2000"></div>
+                <small>文件将被拆分为指定大小的段落，每段独立向量化后存入知识库，原件将保存在 uploads/kb/ 目录。</small>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">上传</button></div>
+        </form>
+    </div></div>
+</div>
+
+<!-- Files KB Modal -->
+<div class="modal fade" id="filesKbModal{{ kb.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">文件列表 - {{ kb.name }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            {% set file_list = kb.files.all() %}
+            {% if file_list %}
+            <table class="table table-sm admin-table">
+                <thead><tr><th>文件名</th><th>大小</th><th>段落数</th><th>上传时间</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for f in file_list %}
+                <tr>
+                    <td><code>{{ f.filename }}</code></td>
+                    <td>{{ f.file_size_display() }}</td>
+                    <td>{{ f.chunk_count }}</td>
+                    <td>{{ f.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.knowledge_base_file_delete', kb_id=kb.id, file_id=f.id) }}" style="display:inline;" onsubmit="return confirm('确定删除文件「{{ f.filename }}」及其所有向量段落？')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button></form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>暂无上传文件。</p>
+            {% endif %}
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button></div>
+    </div></div>
+</div>
+
+<!-- Edit KB Modal -->
+<div class="modal fade" id="editKbModal{{ kb.id }}" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form method="POST" action="{{ url_for('admin.knowledge_base_edit', kb_id=kb.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-header"><h5 class="modal-title">编辑知识库 #{{ kb.id }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2"><label class="form-label">名称</label><input type="text" name="name" class="form-control" value="{{ kb.name }}" required></div>
+                <div class="mb-2"><label class="form-label">描述</label><input type="text" name="description" class="form-control" value="{{ kb.description or '' }}"></div>
+                <div class="mb-2"><label class="form-label">Collection名称</label><input type="text" name="collection_name" class="form-control" value="{{ kb.collection_name }}" required></div>
+                <div class="mb-2"><label class="form-label">Embedding模型</label><select name="embedding_model_id" class="form-select"><option value="">选择Embedding模型</option>{% for em in embeddings %}<option value="{{ em.id }}" {% if kb.embedding_model_id == em.id %}selected{% endif %}>{{ em.name }}</option>{% endfor %}</select></div>
+                <div class="form-check"><input type="checkbox" name="is_active" value="true" class="form-check-input" {% if kb.is_active %}checked{% endif %}><label class="form-check-label">激活</label></div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">保存</button></div>
+        </form>
+    </div></div>
+</div>
+{% endfor %}
+
+<!-- Add KB Modal -->
+<div class="modal fade" id="addKbModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form method="POST" action="{{ url_for('admin.knowledge_base_add') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-header"><h5 class="modal-title">添加知识库</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2"><label class="form-label">名称</label><input type="text" name="name" class="form-control" required></div>
+                <div class="mb-2"><label class="form-label">描述</label><input type="text" name="description" class="form-control"></div>
+                <div class="mb-2"><label class="form-label">Collection名称</label><input type="text" name="collection_name" class="form-control" required></div>
+                <div class="mb-2"><label class="form-label">Embedding模型</label><select name="embedding_model_id" class="form-select"><option value="">选择Embedding模型</option>{% for em in embeddings %}<option value="{{ em.id }}">{{ em.name }}</option>{% endfor %}</select></div>
+                <div class="form-check"><input type="checkbox" name="is_active" value="true" class="form-check-input" checked><label class="form-check-label">激活</label></div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">添加</button></div>
+        </form>
+    </div></div>
+</div>
+{% endblock %}

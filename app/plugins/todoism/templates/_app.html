@@ -1,0 +1,120 @@
+{% extends 'todo_base.html' %}
+
+{% block content %}
+    <div class="container-fluid mt-3">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">Todoism</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#todoismNavbar" aria-controls="todoismNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="todoismNavbar">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('todoism.app') }}">首页</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('todoism.actives') }}">所有待办事项</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('todoism.search') }}">搜索</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <h4 class="mb-4">待办清单</h4>
+        <div class="row mb-3">
+            <div class="col-md-5">
+                <input id="item-input" class="form-control" data-href="{{ url_for('.new_item') }}"
+                       type="text" placeholder="需要做什么？" autocomplete="off" autofocus required>
+            </div>
+            <div class="col-md-3">
+                <input id="new-due-date" class="form-control" type="date" placeholder="截止日期">
+            </div>
+            <div class="col-md-4">
+                <input id="timestamp" class="form-control" readonly="readonly" type="text" 
+                       name="search-item-timestamp" placeholder="{{ date }}">
+            </div>
+        </div>
+
+        <div class="row mb-3" id="dashboard">
+            <div class="col-lg-9 col-md-12">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item col-md-4 text-center">
+                        <a class="nav-link active text-primary" id="all-item" data-toggle="tab" href="#all-pane" role="tab">
+                            全部 <span class="text-secondary small" id="all-count">{{ all_count }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item col-md-4 text-center">
+                        <a class="nav-link text-primary" id="active-item" data-toggle="tab" href="#active-pane" role="tab">
+                            进行中 <span class="text-secondary small" id="active-count">{{ active_count }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item col-md-4 text-center">
+                        <a class="nav-link text-primary" id="completed-item" data-toggle="tab" href="#completed-pane" role="tab">
+                            已完成 <span class="text-secondary small" id="completed-count">{{ completed_count }}</span>
+                        </a>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="all-pane" role="tabpanel">
+                        <!-- All items will be shown here -->
+                    </div>
+                    <div class="tab-pane fade" id="active-pane" role="tabpanel">
+                        <!-- Active items will be shown here -->
+                    </div>
+                    <div class="tab-pane fade" id="completed-pane" role="tabpanel">
+                        <!-- Completed items will be shown here -->
+                    </div>
+                </div>
+            </div>
+            <!-- Optional clear button can be added here -->
+        </div>
+
+        <div class="items" id="items">
+            {% if items %}
+                {% for item in items %}
+                    {% include '_item.html' %}
+                {% endfor %}
+            {% else %}
+                <div class="card shadow-sm mb-2">
+                    <div class="card-body">
+                        <span class="item-body">
+                            <span>No records!</span>
+                        </span>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block script %}
+    {{ super() }}
+    <script src="{{ url_for('todoism.static', filename='foundation-datepicker.js') }}"></script>
+
+    <script>
+        // Define global variables required by script.js
+
+        var app_page_url = "{{ url_for('todoism.app') }}";
+        var new_item_url = "{{ url_for('todoism.new_item') }}";
+        var actives_url = "{{ url_for('todoism.actives') }}";
+        var search_url = "{{ url_for('todoism.search') }}";
+        var clear_item_url = "{{ url_for('todoism.clear_items') }}";
+        var csrf_token = "{{ csrf_token() }}";
+        var default_error_message = "An error occurred.";
+        var empty_body_error_message = "内容不能为空。";
+        var login_error_message = "用户名或密码错误。";
+    </script>
+    <script src="{{ url_for('todoism.static', filename='script.js') }}"></script>
+    <script>
+        $(document).ready(function() {
+            $('#timestamp').fdatepicker({
+                format: 'yyyy-mm-dd',
+                pickTime: false
+            });
+        });
+    </script>
+{% endblock %}

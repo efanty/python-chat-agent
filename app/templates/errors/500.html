@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}500 - 服务器错误{% endblock %}
+{% block body %}
+<div class="auth-wrapper">
+    <div class="auth-card text-center">
+        <div style="font-size:5rem;color:var(--danger);">500</div>
+        <h4>服务器内部错误</h4>
+        <p class="small">Internal Server Error - 内部服务器错误！</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary"><i class="fas fa-home"></i> 返回首页</a>
+    </div>
+</div>
+{% endblock %}

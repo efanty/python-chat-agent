@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议录音管理</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+        /* 顶部导航 */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 24px; }
+        .header .subtitle { opacity: 0.8; font-size: 14px; margin-top: 4px; }
+        .header-actions { display: flex; gap: 10px; }
+
+        /* 录音控制面板 */
+        .recorder-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        .recorder-panel.recording {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+            border: 2px solid #e74c3c;
+        }
+        .recorder-status {
+            font-size: 16px;
+            margin-bottom: 16px;
+            color: #666;
+        }
+        .recorder-status.recording {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+        .recorder-timer {
+            font-size: 48px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 16px;
+            color: #333;
+        }
+        .recorder-timer.recording { color: #e74c3c; }
+        .recorder-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: none;
+            font-size: 32px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 0 10px;
+        }
+        .recorder-btn:hover { transform: scale(1.1); }
+        .recorder-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-start {
+            background: #e74c3c;
+            color: white;
+            box-shadow: 0 4px 15px rgba(231,76,60,0.4);
+        }
+        .btn-stop {
+            background: #95a5a6;
+            color: white;
+            box-shadow: 0 4px 15px rgba(149,165,166,0.4);
+        }
+        .btn-pause {
+            background: #f39c12;
+            color: white;
+            box-shadow: 0 4px 15px rgba(243,156,18,0.4);
+        }
+        .recorder-waveform {
+            height: 60px;
+            margin: 16px 0;
+            display: none;
+        }
+        .recorder-waveform canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        /* 实时字幕区域 */
+        .subtitle-area {
+            display: none;
+            margin: 12px auto;
+            max-width: 800px;
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 16px;
+            min-height: 80px;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .subtitle-area.active { display: block; }
+        .subtitle-item {
+            color: #e0e0e0;
+            font-size: 15px;
+            line-height: 1.6;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            animation: fadeInSubtitle 0.3s ease;
+        }
+        .subtitle-item:last-child {
+            color: #4fc3f7;
+            font-weight: 500;
+        }
+        .subtitle-item .speaker-tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            font-size: 11px;
+            padding: 1px 8px;
+            border-radius: 10px;
+            margin-right: 8px;
+        }
+        @keyframes fadeInSubtitle {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .subtitle-toggle {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+        }
+        .subtitle-toggle label {
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .subtitle-toggle input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        /* 录音标题输入 */
+        .recorder-title {
+            margin-top: 16px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .recorder-title input {
+            padding: 10px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            width: 400px;
+            max-width: 100%;
+            outline: none;
+        }
+        .recorder-title input:focus { border-color: #667eea; }
+
+        /* 搜索栏 */
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .search-bar input {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+        .search-bar input:focus { border-color: #667eea; }
+        .search-bar button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .search-bar button:hover { background: #5a6fd6; }
+
+        /* 录音列表 */
+        .recordings-list { display: flex; flex-direction: column; gap: 12px; }
+        .recording-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .recording-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+        .recording-info { flex: 1; }
+        .recording-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .recording-title .edit-btn {
+            font-size: 12px;
+            color: #667eea;
+            cursor: pointer;
+            margin-left: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .recording-card:hover .edit-btn { opacity: 1; }
+        .recording-meta {
+            font-size: 13px;
+            color: #999;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .recording-meta i { margin-right: 4px; }
+        .recording-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .recording-actions button {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .recording-actions button:hover { transform: translateY(-1px); }
+        .btn-transcribe {
+            background: #667eea;
+            color: white;
+        }
+        .btn-transcribe:hover { background: #5a6fd6; }
+        .btn-minutes {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-minutes:hover { background: #219a52; }
+        .btn-download {
+            background: #3498db;
+            color: white;
+        }
+        .btn-download:hover { background: #2980b9; }
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-delete:hover { background: #c0392b; }
+        .btn-view {
+            background: #95a5a6;
+            color: white;
+        }
+        .btn-view:hover { background: #7f8c8d; }
+
+        /* 状态标签 */
+        .status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-uploaded { background: #e8f4fd; color: #2980b9; }
+        .status-transcribing { background: #fff3cd; color: #856404; }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-failed { background: #f8d7da; color: #721c24; }
+
+        /* 转写内容预览 */
+        .transcript-preview {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #666;
+            max-height: 60px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .transcript-preview:hover { max-height: none; }
+
+        /* Toast 通知 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+        }
+        .toast-success { background: #27ae60; }
+        .toast-error { background: #e74c3c; }
+        .toast-info { background: #3498db; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; }
+        .empty-state p { font-size: 16px; }
+
+        /* 模态框 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal h2 { margin-bottom: 16px; }
+        .modal .transcript-text {
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.8;
+            color: #333;
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        .modal-close:hover { color: #333; }
+
+        /* ═══ 上传录音文件转文字 ═══ */
+        .upload-panel {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .upload-header {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .upload-header i { font-size: 20px; }
+        .upload-body {
+            padding: 24px;
+        }
+        .upload-dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        .upload-dropzone:hover,
+        .upload-dropzone.drag-over {
+            border-color: #43e97b;
+            background: #f0fff4;
+        }
+        .upload-dropzone i {
+            font-size: 48px;
+            color: #43e97b;
+            margin-bottom: 12px;
+        }
+        .upload-text {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .upload-hint {
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 16px;
+        }
+        .upload-btn {
+            padding: 10px 24px;
+            background: #43e97b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .upload-btn:hover { background: #3ad16e; transform: translateY(-1px); }
+        .upload-progress {
+            text-align: center;
+            padding: 20px;
+        }
+        .upload-filename {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 12px;
+            word-break: break-all;
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #43e97b, #38f9d7);
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        .upload-status {
+            font-size: 13px;
+            color: #666;
+        }
+        .upload-result {
+            text-align: center;
+            padding: 20px;
+        }
+        .result-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+        .result-icon .fa-check-circle { color: #27ae60; }
+        .result-icon .fa-times-circle { color: #e74c3c; }
+        .result-text {
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        /* ═══ 设置面板 ═══ */
+        .settings-panel {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .settings-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .settings-header:hover {
+            opacity: 0.95;
+        }
+        .settings-arrow {
+            margin-left: auto;
+            transition: transform 0.3s;
+        }
+        .settings-arrow.open {
+            transform: rotate(180deg);
+        }
+        .settings-body {
+            padding: 16px 20px;
+        }
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+        .setting-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #333;
+        }
+        .setting-label i {
+            color: #667eea;
+            width: 18px;
+            text-align: center;
+        }
+        .setting-control select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            background: white;
+            cursor: pointer;
+        }
+        .setting-control select:focus {
+            border-color: #667eea;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .recording-card { flex-direction: column; align-items: flex-start; }
+            .recording-actions { margin-top: 12px; flex-wrap: wrap; }
+            .recorder-timer { font-size: 36px; }
+            .header { flex-direction: column; text-align: center; }
+            .header-actions { margin-top: 12px; }
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+    <!-- 顶部导航 -->
+    <div class="header">
+        <div>
+            <h1><i class="fas fa-microphone-alt"></i> 会议录音管理</h1>
+            <div class="subtitle">录制会议 → 实时字幕 → 转文字 → 多说话人识别 → 生成会议纪要</div>
+        </div>
+        <div class="header-actions">
+            <button onclick="triggerCleanup()" class="btn" style="padding:10px 20px;background:rgba(255,255,255,0.15);color:white;border-radius:8px;border:none;cursor:pointer;">
+                <i class="fas fa-trash-alt"></i> 清理过期
+            </button>
+            <a href="/chat" class="btn" style="padding:10px 20px;background:rgba(255,255,255,0.2);color:white;border-radius:8px;text-decoration:none;">
+                <i class="fas fa-comment-dots"></i> 返回聊天
+            </a>
+        </div>
+    </div>
+
+    <!-- 录音控制面板 -->
+    <div class="recorder-panel" id="recorderPanel">
+        <div class="recorder-status" id="recorderStatus">点击下方按钮开始录音</div>
+        <div class="recorder-timer" id="recorderTimer">00:00:00</div>
+        <div class="recorder-waveform" id="recorderWaveform">
+            <canvas id="waveformCanvas"></canvas>
+        </div>
+
+        <!-- 实时字幕区域 -->
+        <div class="subtitle-area" id="subtitleArea">
+            <div id="subtitleContent"></div>
+        </div>
+
+        <div>
+            <button class="recorder-btn btn-start" id="btnStart" onclick="startRecording()" title="开始录音">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="recorder-btn btn-pause" id="btnPause" onclick="togglePause()" style="display:none;" title="暂停/继续录音">
+                <i class="fas fa-pause"></i>
+            </button>
+            <button class="recorder-btn btn-stop" id="btnStop" onclick="stopRecording()" style="display:none;" title="停止录音">
+                <i class="fas fa-stop"></i>
+            </button>
+        </div>
+
+        <!-- 字幕开关 -->
+        <div class="subtitle-toggle">
+            <label>
+                <input type="checkbox" id="subtitleCheckbox" checked>
+                <i class="fas fa-closed-captioning"></i> 实时字幕
+            </label>
+            <label style="margin-left:16px;">
+                <input type="checkbox" id="autoTranscribeCheckbox" checked>
+                <i class="fas fa-magic"></i> 自动转写
+            </label>
+        </div>
+
+        <div class="recorder-title">
+            <input type="text" id="recordingTitle" placeholder="输入会议标题（可选）" maxlength="100">
+        </div>
+    </div>
+
+    <!-- ═══ 上传录音文件转文字 ═══ -->
+    <div class="upload-panel">
+        <div class="upload-header">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <span>上传录音文件转文字</span>
+        </div>
+        <div class="upload-body">
+            <div class="upload-dropzone" id="uploadDropzone">
+                <i class="fas fa-file-audio"></i>
+                <p class="upload-text">拖拽音频文件到此处，或点击选择文件</p>
+                <p class="upload-hint">支持 MP3、WAV、M4A、OGG、WebM、Opus 格式</p>
+                <input type="file" id="uploadFileInput" accept=".mp3,.wav,.m4a,.ogg,.webm,.opus,.mp4" style="display:none">
+                <button class="upload-btn" onclick="document.getElementById('uploadFileInput').click()">
+                    <i class="fas fa-folder-open"></i> 选择文件
+                </button>
+            </div>
+            <div class="upload-progress" id="uploadProgress" style="display:none;">
+                <div class="upload-filename" id="uploadFilename"></div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="uploadProgressFill"></div>
+                </div>
+                <div class="upload-status" id="uploadStatus">上传中...</div>
+            </div>
+            <div class="upload-result" id="uploadResult" style="display:none;">
+                <div class="result-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="result-text" id="uploadResultText"></div>
+                <button class="upload-btn" onclick="viewUploadResult()" id="viewResultBtn" style="display:none;">
+                    <i class="fas fa-file-alt"></i> 查看转写结果
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ ASR 引擎设置 ═══ -->
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header" onclick="toggleSettings()">
+            <i class="fas fa-cog"></i> <span>语音识别引擎设置</span>
+            <i class="fas fa-chevron-down settings-arrow" id="settingsArrow"></i>
+        </div>
+        <div class="settings-body" id="settingsBody" style="display:none;">
+            <div class="setting-item">
+                <div class="setting-label">
+                    <i class="fas fa-microchip"></i>
+                    <span>ASR 引擎</span>
+                </div>
+                <div class="setting-control">
+                    <select id="asrEngineSelect" onchange="changeAsrEngine()">
+                        <option value="funasr">FunASR（离线，默认）</option>
+                        <option value="doubao">豆包 ASR（火山引擎在线）</option>
+                    </select>
+                </div>
+            </div>
+            <div class="setting-item" id="doubaoConfigHint" style="display:none;">
+                <div class="setting-label">
+                    <i class="fas fa-info-circle"></i>
+                    <span>配置说明</span>
+                </div>
+                <div class="setting-control" style="font-size:13px;color:#666;">
+                    请在 <code>.env</code> 文件中设置 <code>DOUBAO_ASR_APPID</code> 和 <code>DOUBAO_ASR_TOKEN</code>
+                </div>
+            </div>
+            <div class="setting-item">
+                <div class="setting-label">
+                    <i class="fas fa-check-circle"></i>
+                    <span>当前状态</span>
+                </div>
+                <div class="setting-control">
+                    <span id="asrStatusText" style="color:#27ae60;">✓ FunASR 已就绪</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="搜索录音标题或转写内容..." onkeydown="if(event.key==='Enter') searchRecordings()">
+        <button onclick="searchRecordings()"><i class="fas fa-search"></i> 搜索</button>
+        <button onclick="loadRecordings()" style="background:#95a5a6;"><i class="fas fa-sync"></i> 刷新</button>
+    </div>
+
+    <!-- 录音列表 -->
+    <div id="recordingsList" class="recordings-list">
+        <div class="empty-state">
+            <i class="fas fa-microphone-slash"></i>
+            <p>暂无录音记录，点击上方按钮开始录音</p>
+        </div>
+    </div>
+</div>
+
+<!-- 转写内容模态框 -->
+<div class="modal-overlay" id="transcriptModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeTranscriptModal()">&times;</button>
+        <h2 id="modalTitle">转写内容</h2>
+        <div class="transcript-text" id="modalTranscript"></div>
+        <div style="margin-top:16px;text-align:right;">
+            <button class="btn btn-minutes" onclick="generateMinutesFromModal()" style="padding:10px 20px;border:none;border-radius:8px;cursor:pointer;">
+                <i class="fas fa-file-alt"></i> 生成会议纪要
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CSRF Token 辅助函数
+// ═══════════════════════════════════════════════════════════════
+function getCSRFToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+}
+
+/**
+ * 对 fetch 进行封装，自动添加 CSRF token 到请求头。
+ * 对于 POST/PUT/DELETE 请求，添加 X-CSRFToken 头。
+ * 对于 FormData 请求，额外添加 csrf_token 字段。
+ */
+function fetchWithCSRF(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    const headers = options.headers || {};
+
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        headers['X-CSRFToken'] = getCSRFToken();
+
+        // 如果是 FormData，额外添加 csrf_token 字段
+        if (options.body instanceof FormData) {
+            options.body.append('csrf_token', getCSRFToken());
+        }
+    }
+
+    options.headers = headers;
+    return fetch(url, options);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 录音功能
+// ═══════════════════════════════════════════════════════════════
+let mediaRecorder = null;
+let audioChunks = [];
+let audioStream = null;
+let audioContext = null;
+let analyserNode = null;
+let isRecording = false;
+let isPaused = false;
+let startTime = null;
+let timerInterval = null;
+let animationFrameId = null;
+let currentRecordId = null;
+
+// 分片上传
+const CHUNK_DURATION_MS = 5000; // 每5秒一个分片（同时也用于字幕实时性）
+let chunkIndex = 0;
+let sessionId = null;
+let totalChunks = 0;
+
+// 实时字幕
+let subtitleInterval = null;
+const SUBTITLE_INTERVAL_MS = 3000; // 每3秒识别一次
+let lastSubtitleChunkIndex = 0;
+let subtitleSpeakerIndex = 0;
+const SPEAKER_LABELS = ['说话人A', '说话人B', '说话人C', '说话人D', '说话人E'];
+
+function formatTime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function showToast(message, type = 'info') {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function getSupportedMimeType() {
+    // 优先使用 wav 格式，因为 wav 是流式友好的，每个数据块都是独立有效的
+    const types = ['audio/wav', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+    for (const t of types) {
+        if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return null;
+}
+
+async function startRecording() {
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showToast('浏览器不支持麦克风访问，请使用 HTTPS 或 localhost', 'error');
+            return;
+        }
+
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        chunkIndex = 0;
+        sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        totalChunks = 0;
+        currentRecordId = null;
+        lastSubtitleChunkIndex = 0;
+        subtitleSpeakerIndex = 0;
+
+        // 清空字幕
+        document.getElementById('subtitleContent').innerHTML = '';
+
+        // 初始化音频分析器
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = 256;
+        const source = audioContext.createMediaStreamSource(audioStream);
+        source.connect(analyserNode);
+
+        // 显示波形
+        document.getElementById('recorderWaveform').style.display = 'block';
+        drawWaveform();
+
+        // 创建 MediaRecorder
+        const mimeType = getSupportedMimeType();
+        mediaRecorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : {});
+
+        mediaRecorder.ondataavailable = function(event) {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+                uploadChunk(event.data);
+            }
+        };
+
+        mediaRecorder.onstop = function() {
+            if (audioChunks.length > 0) {
+                const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+                uploadChunk(blob, true);
+            }
+            cleanupRecording();
+        };
+
+        mediaRecorder.onerror = function() {
+            showToast('录音出错', 'error');
+            cleanupRecording();
+        };
+
+        // 先不传 timeslice 启动，等录音开始后再用单独的定时器处理分片
+        mediaRecorder.start(1000); // 每秒收集一次数据，保证字幕实时性
+
+        isRecording = true;
+        isPaused = false;
+        startTime = Date.now();
+
+        // 更新 UI
+        document.getElementById('btnStart').style.display = 'none';
+        document.getElementById('btnStop').style.display = 'inline-block';
+        document.getElementById('btnPause').style.display = 'inline-block';
+        document.getElementById('recorderPanel').classList.add('recording');
+        document.getElementById('recorderStatus').textContent = '🔴 录音中...';
+        document.getElementById('recorderStatus').classList.add('recording');
+        document.getElementById('recorderTimer').classList.add('recording');
+
+        timerInterval = setInterval(updateTimer, 100);
+
+        // ── 启动实时字幕 ────────────────────────────────────────────
+        if (document.getElementById('subtitleCheckbox').checked) {
+            startSubtitle();
+        }
+
+        showToast('开始录音', 'info');
+    } catch (err) {
+        console.error('启动录音失败:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            showToast('麦克风权限被拒绝，请在浏览器设置中允许麦克风访问', 'error');
+        } else {
+            showToast('启动录音失败: ' + err.message, 'error');
+        }
+    }
+}
+
+function uploadChunk(blob, isLast = false) {
+    const formData = new FormData();
+    const ext = getSupportedMimeType()?.includes('webm') ? '.webm' : '.wav';
+    formData.append('audio', blob, `chunk_${chunkIndex}${ext}`);
+    formData.append('chunk_index', chunkIndex);
+    formData.append('total_chunks', isLast ? chunkIndex + 1 : 999);
+    formData.append('session_id', sessionId);
+    formData.append('auto_transcribe', document.getElementById('autoTranscribeCheckbox').checked ? '1' : '0');
+
+    const title = document.getElementById('recordingTitle').value.trim();
+    if (title) formData.append('title', title);
+
+    fetchWithCSRF('/meeting_recorder/api/upload', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.record_id) {
+            currentRecordId = data.record_id;
+            if (isLast) {
+                showToast('录音上传完成' + (document.getElementById('autoTranscribeCheckbox').checked ? '，自动转写已启动' : ''), 'success');
+                loadRecordings();
+            }
+        }
+    })
+    .catch(err => console.error('上传分片失败:', err));
+
+    chunkIndex++;
+}
+
+function togglePause() {
+    if (isPaused) {
+        resumeRecording();
+    } else {
+        pauseRecording();
+    }
+}
+
+function pauseRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.pause();
+        isPaused = true;
+        document.getElementById('btnPause').innerHTML = '<i class="fas fa-play"></i>';
+        document.getElementById('recorderStatus').textContent = '⏸️ 已暂停';
+        document.getElementById('recorderStatus').classList.remove('recording');
+        stopSubtitle();
+    }
+}
+
+function resumeRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'paused') {
+        mediaRecorder.resume();
+        isPaused = false;
+        document.getElementById('btnPause').innerHTML = '<i class="fas fa-pause"></i>';
+        document.getElementById('recorderStatus').textContent = '🔴 录音中...';
+        document.getElementById('recorderStatus').classList.add('recording');
+        if (document.getElementById('subtitleCheckbox').checked) {
+            startSubtitle();
+        }
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+    if (audioStream) {
+        audioStream.getTracks().forEach(t => t.stop());
+        audioStream = null;
+    }
+    stopSubtitle();
+}
+
+function cleanupRecording() {
+    isRecording = false;
+    isPaused = false;
+    if (timerInterval) clearInterval(timerInterval);
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    stopSubtitle();
+
+    document.getElementById('btnStart').style.display = 'inline-block';
+    document.getElementById('btnStop').style.display = 'none';
+    document.getElementById('btnPause').style.display = 'none';
+    document.getElementById('recorderPanel').classList.remove('recording');
+    document.getElementById('recorderStatus').textContent = '点击下方按钮开始录音';
+    document.getElementById('recorderStatus').classList.remove('recording');
+    document.getElementById('recorderTimer').classList.remove('recording');
+    document.getElementById('recorderWaveform').style.display = 'none';
+    document.getElementById('subtitleArea').classList.remove('active');
+
+    mediaRecorder = null;
+    audioChunks = [];
+}
+
+function updateTimer() {
+    if (!startTime) return;
+    const elapsed = (Date.now() - startTime) / 1000;
+    document.getElementById('recorderTimer').textContent = formatTime(elapsed);
+}
+
+function drawWaveform() {
+    if (!analyserNode) return;
+    const canvas = document.getElementById('waveformCanvas');
+    const ctx = canvas.getContext('2d');
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function draw() {
+        if (!isRecording) return;
+        animationFrameId = requestAnimationFrame(draw);
+        analyserNode.getByteTimeDomainData(dataArray);
+
+        ctx.fillStyle = '#f8f9fa';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#667eea';
+        ctx.beginPath();
+
+        const sliceWidth = canvas.width / bufferLength;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+            const v = dataArray[i] / 128.0;
+            const y = v * canvas.height / 2;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+            x += sliceWidth;
+        }
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+    }
+    draw();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 实时字幕功能
+// ═══════════════════════════════════════════════════════════════
+
+function startSubtitle() {
+    document.getElementById('subtitleArea').classList.add('active');
+    // 每 SUBTITLE_INTERVAL_MS 毫秒发送一次音频片段进行识别
+    subtitleInterval = setInterval(sendSubtitleChunk, SUBTITLE_INTERVAL_MS);
+}
+
+function stopSubtitle() {
+    if (subtitleInterval) {
+        clearInterval(subtitleInterval);
+        subtitleInterval = null;
+    }
+}
+
+function sendSubtitleChunk() {
+    if (!isRecording || isPaused) return;
+    if (audioChunks.length <= lastSubtitleChunkIndex) return;
+
+    // 收集自上次识别以来的新音频数据
+    const newChunks = audioChunks.slice(lastSubtitleChunkIndex);
+    if (newChunks.length === 0) return;
+
+    lastSubtitleChunkIndex = audioChunks.length;
+
+    const mimeType = getSupportedMimeType() || 'audio/webm';
+    const blob = new Blob(newChunks, { type: mimeType });
+
+    // 跳过太短的音频
+    if (blob.size < 8000) return;
+
+    const formData = new FormData();
+    formData.append('audio', blob, 'subtitle.webm');
+    formData.append('session_id', sessionId);
+
+    fetchWithCSRF('/meeting_recorder/api/realtime-transcribe', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.text && data.text.trim()) {
+            addSubtitleItem(data.text.trim());
+        }
+    })
+    .catch(err => console.error('实时字幕识别失败:', err));
+}
+
+function addSubtitleItem(text) {
+    const container = document.getElementById('subtitleContent');
+
+    // 轮换说话人标签（模拟多说话人效果）
+    const speakerLabel = SPEAKER_LABELS[subtitleSpeakerIndex % SPEAKER_LABELS.length];
+    subtitleSpeakerIndex++;
+
+    const div = document.createElement('div');
+    div.className = 'subtitle-item';
+    div.innerHTML = `<span class="speaker-tag">${speakerLabel}</span>${escapeHtml(text)}`;
+    container.appendChild(div);
+
+    // 自动滚动到底部
+    const area = document.getElementById('subtitleArea');
+    area.scrollTop = area.scrollHeight;
+
+    // 最多保留 50 条字幕
+    while (container.children.length > 50) {
+        container.removeChild(container.firstChild);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 录音列表管理
+// ═══════════════════════════════════════════════════════════════
+
+function loadRecordings(keyword = '') {
+    const url = keyword
+        ? `/meeting_recorder/api/recordings?keyword=${encodeURIComponent(keyword)}`
+        : '/meeting_recorder/api/recordings';
+
+    fetch(url)
+    .then(r => r.json())
+    .then(data => {
+        const container = document.getElementById('recordingsList');
+        if (!data.success || !data.records || data.records.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-microphone-slash"></i>
+                    <p>${keyword ? '未找到匹配的录音' : '暂无录音记录，点击上方按钮开始录音'}</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = data.records.map(r => {
+            const speakerBadge = r.speaker_count > 1
+                ? `<span style="font-size:12px;color:#667eea;"><i class="fas fa-users"></i> ${r.speaker_count}人</span>`
+                : '';
+
+            return `
+            <div class="recording-card">
+                <div class="recording-info">
+                    <div class="recording-title">
+                        ${escapeHtml(r.title)}
+                        <span class="edit-btn" onclick="editTitle(${r.id})" title="编辑标题">
+                            <i class="fas fa-pen"></i>
+                        </span>
+                    </div>
+                    <div class="recording-meta">
+                        <span><i class="far fa-clock"></i> ${formatDuration(r.duration)}</span>
+                        <span><i class="far fa-calendar"></i> ${r.created_at || ''}</span>
+                        <span><span class="status-badge status-${r.status}">${statusText(r.status)}</span></span>
+                        <span><i class="fas fa-file-audio"></i> ${formatFileSize(r.file_size)}</span>
+                        ${speakerBadge}
+                    </div>
+                    ${r.has_transcript ? `<div class="transcript-preview" onclick="viewTranscript(${r.id})">📝 ${escapeHtml(r.transcript?.slice(0, 100))}...</div>` : ''}
+                </div>
+                <div class="recording-actions">
+                    ${r.status === 'completed' ? `
+                        <button class="btn-view" onclick="viewTranscript(${r.id})" title="查看转写内容">
+                            <i class="fas fa-file-alt"></i>
+                        </button>
+                        <button class="btn-minutes" onclick="generateMinutes(${r.id})" title="生成会议纪要">
+                            <i class="fas fa-file-signature"></i>
+                        </button>
+                    ` : r.status === 'uploaded' ? `
+                        <button class="btn-transcribe" onclick="transcribeRecording(${r.id})" title="转写为文字">
+                            <i class="fas fa-language"></i> 转写
+                        </button>
+                    ` : r.status === 'transcribing' ? `
+                        <button class="btn-transcribe" disabled title="转写中...">
+                            <i class="fas fa-spinner fa-spin"></i> 转写中
+                        </button>
+                    ` : `
+                        <button class="btn-transcribe" onclick="transcribeRecording(${r.id})" title="重新转写">
+                            <i class="fas fa-redo"></i> 重试
+                        </button>
+                    `}
+                    <button class="btn-download" onclick="downloadRecording(${r.id})" title="下载录音文件">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="btn-delete" onclick="deleteRecording(${r.id})" title="删除">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `}).join('');
+    })
+    .catch(err => {
+        console.error('加载录音列表失败:', err);
+        showToast('加载录音列表失败', 'error');
+    });
+}
+
+function searchRecordings() {
+    const keyword = document.getElementById('searchInput').value.trim();
+    loadRecordings(keyword);
+}
+
+function formatDuration(seconds) {
+    if (!seconds || seconds <= 0) return '未知时长';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}时${m}分${s}秒`;
+    if (m > 0) return `${m}分${s}秒`;
+    return `${s}秒`;
+}
+
+function formatFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+}
+
+function statusText(status) {
+    const map = { uploaded: '已上传', transcribing: '转写中', completed: '已完成', failed: '失败' };
+    return map[status] || status;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 操作函数
+// ═══════════════════════════════════════════════════════════════
+
+function transcribeRecording(recordId) {
+    showToast('正在启动转写...', 'info');
+    fetchWithCSRF(`/meeting_recorder/api/recordings/${recordId}/transcribe`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('转写任务已启动，请稍后刷新查看结果', 'success');
+            pollTranscribeStatus(recordId);
+        } else {
+            showToast('启动转写失败: ' + (data.error || ''), 'error');
+        }
+    })
+    .catch(err => {
+        showToast('启动转写失败', 'error');
+        console.error(err);
+    });
+}
+
+function pollTranscribeStatus(recordId) {
+    let attempts = 0;
+    const maxAttempts = 60;
+    const interval = setInterval(() => {
+        attempts++;
+        fetch(`/meeting_recorder/api/recordings/${recordId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.record) {
+                if (data.record.status === 'completed') {
+                    clearInterval(interval);
+                    showToast('转写完成！', 'success');
+                    loadRecordings();
+                } else if (data.record.status === 'failed') {
+                    clearInterval(interval);
+                    showToast('转写失败', 'error');
+                    loadRecordings();
+                }
+            }
+            if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                showToast('转写超时，请手动刷新查看状态', 'info');
+            }
+        })
+        .catch(() => {});
+    }, 5000);
+}
+
+function viewTranscript(recordId) {
+    fetch(`/meeting_recorder/api/recordings/${recordId}`)
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.record) {
+            document.getElementById('modalTitle').textContent = data.record.title || '转写内容';
+            document.getElementById('modalTranscript').textContent = data.record.transcript || '（无转写内容）';
+            document.getElementById('transcriptModal').dataset.recordId = recordId;
+            document.getElementById('transcriptModal').classList.add('active');
+        }
+    })
+    .catch(err => showToast('获取转写内容失败', 'error'));
+}
+
+function closeTranscriptModal() {
+    document.getElementById('transcriptModal').classList.remove('active');
+}
+
+function generateMinutes(recordId) {
+    showToast('正在生成会议纪要...', 'info');
+    fetchWithCSRF(`/meeting_recorder/api/recordings/${recordId}/generate-minutes`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('会议纪要已生成！', 'success');
+            if (data.formatted) {
+                document.getElementById('modalTitle').textContent = '📋 ' + (data.summary || '会议纪要');
+                document.getElementById('modalTranscript').textContent = data.formatted;
+                document.getElementById('transcriptModal').classList.add('active');
+            }
+        } else {
+            showToast('生成失败: ' + (data.error || ''), 'error');
+        }
+    })
+    .catch(err => showToast('生成会议纪要失败', 'error'));
+}
+
+function generateMinutesFromModal() {
+    const recordId = document.getElementById('transcriptModal').dataset.recordId;
+    if (recordId) generateMinutes(recordId);
+}
+
+function downloadRecording(recordId) {
+    window.open(`/meeting_recorder/api/recordings/${recordId}/audio`, '_blank');
+}
+
+function deleteRecording(recordId) {
+    if (!confirm('确定要删除这条录音吗？')) return;
+    fetchWithCSRF(`/meeting_recorder/api/recordings/${recordId}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('录音已删除', 'success');
+            loadRecordings();
+        } else {
+            showToast('删除失败: ' + (data.error || ''), 'error');
+        }
+    })
+    .catch(err => showToast('删除失败', 'error'));
+}
+
+function editTitle(recordId) {
+    const newTitle = prompt('请输入新的标题：');
+    if (!newTitle || !newTitle.trim()) return;
+    fetchWithCSRF(`/meeting_recorder/api/recordings/${recordId}/title`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle.trim() }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('标题已更新', 'success');
+            loadRecordings();
+        }
+    })
+    .catch(err => showToast('更新标题失败', 'error'));
+}
+
+function triggerCleanup() {
+    if (!confirm('确定要清理30天前的过期录音吗？')) return;
+    showToast('正在清理...', 'info');
+    fetchWithCSRF('/meeting_recorder/api/cleanup', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadRecordings();
+        } else {
+            showToast('清理失败: ' + (data.error || ''), 'error');
+        }
+    })
+    .catch(err => showToast('清理失败', 'error'));
+}
+
+// 点击模态框外部关闭
+document.getElementById('transcriptModal').onclick = function(e) {
+    if (e.target === this) closeTranscriptModal();
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ASR 引擎设置
+// ═══════════════════════════════════════════════════════════════
+
+function toggleSettings() {
+    const body = document.getElementById('settingsBody');
+    const arrow = document.getElementById('settingsArrow');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        arrow.classList.add('open');
+    } else {
+        body.style.display = 'none';
+        arrow.classList.remove('open');
+    }
+}
+
+function loadSettings() {
+    fetch('/meeting_recorder/api/settings')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.settings) {
+            const s = data.settings;
+            const select = document.getElementById('asrEngineSelect');
+            const statusText = document.getElementById('asrStatusText');
+            const configHint = document.getElementById('doubaoConfigHint');
+
+            // 设置当前 ASR 引擎
+            if (s.asr_engine === 'doubao') {
+                select.value = 'doubao';
+                if (s.doubao_available) {
+                    statusText.innerHTML = '<i class="fas fa-check-circle" style="color:#27ae60;"></i> 豆包 ASR 已就绪';
+                    statusText.style.color = '#27ae60';
+                } else {
+                    statusText.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#e67e22;"></i> 豆包 ASR 未配置';
+                    statusText.style.color = '#e67e22';
+                    configHint.style.display = 'flex';
+                }
+            } else {
+                select.value = 'funasr';
+                statusText.innerHTML = '<i class="fas fa-check-circle" style="color:#27ae60;"></i> FunASR 已就绪';
+                statusText.style.color = '#27ae60';
+                configHint.style.display = 'none';
+            }
+        }
+    })
+    .catch(err => console.error('加载设置失败:', err));
+}
+
+function changeAsrEngine() {
+    const select = document.getElementById('asrEngineSelect');
+    const engine = select.value;
+    const statusText = document.getElementById('asrStatusText');
+    const configHint = document.getElementById('doubaoConfigHint');
+
+    if (engine === 'doubao') {
+        statusText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在切换...';
+        statusText.style.color = '#3498db';
+    }
+
+    fetchWithCSRF('/meeting_recorder/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asr_engine: engine }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadSettings(); // 刷新状态
+        } else {
+            showToast(data.error || '切换失败', 'error');
+            loadSettings(); // 恢复显示
+        }
+    })
+    .catch(err => {
+        showToast('切换失败', 'error');
+        loadSettings();
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 上传录音文件转文字
+// ═══════════════════════════════════════════════════════════════
+
+let _lastUploadedRecordId = null;
+
+function initUploadPanel() {
+    const dropzone = document.getElementById('uploadDropzone');
+    const fileInput = document.getElementById('uploadFileInput');
+
+    // 点击拖拽区域触发文件选择
+    dropzone.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I') {
+            fileInput.click();
+        }
+    });
+
+    // 选择文件后自动上传
+    fileInput.addEventListener('change', function(e) {
+        if (this.files && this.files.length > 0) {
+            uploadAudioFile(this.files[0]);
+        }
+    });
+
+    // 拖拽上传
+    dropzone.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.add('drag-over');
+    });
+
+    dropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.add('drag-over');
+    });
+
+    dropzone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.remove('drag-over');
+    });
+
+    dropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.remove('drag-over');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            uploadAudioFile(e.dataTransfer.files[0]);
+        }
+    });
+}
+
+function uploadAudioFile(file) {
+    // 检查文件格式
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    const allowed = ['.mp3', '.wav', '.m4a', '.ogg', '.webm', '.opus', '.mp4'];
+    if (!allowed.includes(ext)) {
+        showToast('不支持的音频格式: ' + ext, 'error');
+        return;
+    }
+
+    // 显示进度区域
+    document.getElementById('uploadDropzone').style.display = 'none';
+    document.getElementById('uploadProgress').style.display = 'block';
+    document.getElementById('uploadResult').style.display = 'none';
+    document.getElementById('uploadFilename').textContent = '📁 ' + file.name;
+    document.getElementById('uploadProgressFill').style.width = '0%';
+    document.getElementById('uploadStatus').textContent = '上传中...';
+
+    const formData = new FormData();
+    formData.append('audio', file);
+    formData.append('title', file.name.replace(ext, ''));
+    formData.append('auto_transcribe', '1');
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            document.getElementById('uploadProgressFill').style.width = pct + '%';
+            document.getElementById('uploadStatus').textContent = '上传中 ' + pct + '%';
+        }
+    };
+
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                if (data.success) {
+                    _lastUploadedRecordId = data.record_id;
+                    document.getElementById('uploadProgress').style.display = 'none';
+                    document.getElementById('uploadResult').style.display = 'block';
+                    document.querySelector('#uploadResult .result-icon').innerHTML = '<i class="fas fa-check-circle"></i>';
+                    document.getElementById('uploadResultText').textContent = '上传成功！正在转写...';
+                    document.getElementById('viewResultBtn').style.display = 'none';
+
+                    showToast('上传成功，正在转写...', 'success');
+
+                    // 轮询转写状态
+                    pollTranscribeStatus(data.record_id);
+
+                    // 刷新录音列表
+                    setTimeout(() => loadRecordings(), 1000);
+                } else {
+                    showUploadError(data.error || '上传失败');
+                }
+            } catch (e) {
+                showUploadError('解析响应失败');
+            }
+        } else {
+            showUploadError('上传失败 (HTTP ' + xhr.status + ')');
+        }
+    };
+
+    xhr.onerror = function() {
+        showUploadError('网络错误，上传失败');
+    };
+
+    xhr.open('POST', '/meeting_recorder/api/upload', true);
+    xhr.setRequestHeader('X-CSRFToken', getCSRFToken());
+    xhr.send(formData);
+}
+
+function showUploadError(msg) {
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('uploadResult').style.display = 'block';
+    document.querySelector('#uploadResult .result-icon').innerHTML = '<i class="fas fa-times-circle"></i>';
+    document.getElementById('uploadResultText').textContent = msg;
+    document.getElementById('viewResultBtn').style.display = 'none';
+    showToast(msg, 'error');
+
+    // 3秒后恢复上传区域
+    setTimeout(resetUploadPanel, 3000);
+}
+
+function resetUploadPanel() {
+    document.getElementById('uploadDropzone').style.display = 'block';
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('uploadResult').style.display = 'none';
+    document.getElementById('uploadFileInput').value = '';
+}
+
+function viewUploadResult() {
+    if (_lastUploadedRecordId) {
+        viewTranscript(_lastUploadedRecordId);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+    loadRecordings();
+    initUploadPanel();
+    loadSettings();
+});
+</script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}管理后台{% endblock %}
+{% block body %}
+<div class="admin-wrapper">
+    <div class="admin-sidebar" id="adminSidebar">
+        <div class="brand">
+            <i class="fas fa-tachometer-alt"></i> 管理后台
+            <button class="btn-theme-toggle ms-2" onclick="toggleTheme()" title="切换主题"><i class="fas fa-moon"></i></button>
+        </div>
+        <div class="admin-nav">
+            <div class="nav-section">概览</div>
+            <a href="{{ url_for('admin.dashboard') }}" class="active"><i class="fas fa-home"></i> 控制面板</a>
+            <div class="nav-section">用户与权限</div>
+            <a href="{{ url_for('admin.users') }}"><i class="fas fa-users"></i> 用户管理</a>
+            <div class="nav-section">AI 配置</div>
+            <a href="{{ url_for('admin.agents') }}"><i class="fas fa-robot"></i> 智能体管理</a>
+            <a href="{{ url_for('admin.models') }}"><i class="fas fa-microchip"></i> LLM模型管理</a>
+            <a href="{{ url_for('admin.mcp_tools') }}"><i class="fas fa-tools"></i> MCP工具管理</a>
+            <a href="{{ url_for('admin.api_endpoints') }}"><i class="fas fa-plug"></i> API接口管理</a>
+            <a href="{{ url_for('admin.skills_list') }}"><i class="fas fa-puzzle-piece"></i> Skills管理</a>
+            <a href="{{ url_for('admin.knowledge_bases') }}"><i class="fas fa-database"></i> RAG知识库</a>
+            <a href="{{ url_for('admin.memories') }}"><i class="fas fa-brain"></i> 记忆管理</a>
+            <a href="{{ url_for('plugin_manager.index') }}"><i class="fas fa-brain"></i> 插件管理</a>
+            <div class="nav-section">安全</div>
+            <a href="{{ url_for('admin.blocked_ips') }}"><i class="fas fa-shield-alt"></i> IP封禁管理</a>
+            <div class="nav-section">系统</div>
+
+            <a href="{{ url_for('admin.site_settings') }}"><i class="fas fa-sliders-h"></i> 网站设置</a>
+            <a href="{{ url_for('admin.upgrade') }}"><i class="fas fa-sync-alt"></i> 系统升级</a>
+            <div class="nav-section">快捷操作</div>
+            <a href="{{ url_for('chat.index') }}"><i class="fas fa-comments"></i> 返回对话</a>
+            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> 退出登录</a>
+        </div>
+    </div>
+    <div class="admin-overlay" id="adminOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
+    <div class="admin-main">
+        <div class="d-flex align-items-center mb-3">
+            <button class="btn btn-sm btn-outline-light d-md-none me-2" id="adminSidebarToggle"><i class="fas fa-bars"></i></button>
+            <h5 class="mb-2">控制面板</h5>
+            </div>
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.user_count }}</div><div class="stat-label">用户</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.agent_count }}</div><div class="stat-label">智能体</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.model_count }}</div><div class="stat-label">LLM模型</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.mcp_count + stats.api_count }}</div><div class="stat-label">工具/API</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.skill_count }}</div><div class="stat-label">Skills</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.kb_count }}</div><div class="stat-label">知识库</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.conversation_count }}</div><div class="stat-label">对话数</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.message_count }}</div><div class="stat-label">消息数</div></div>
+            </div>
+        </div>
+        <h5 class="mb-2"><i class="fas fa-chart-bar"></i> Token 消耗统计</h5>
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.total_input_tokens|default(0) }}</div><div class="stat-label">输入 Tokens</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.total_output_tokens|default(0) }}</div><div class="stat-label">输出 Tokens</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ stats.total_tokens|default(0) }}</div><div class="stat-label">总 Tokens</div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card"><div class="stat-num">{{ "%.4f"|format(stats.total_cost|default(0)) }}</div><div class="stat-label">总费用 (CNY)</div></div>
+            </div>
+        </div>
+        <p class="text-muted">欢迎使用 DeepAgent Chat 管理后台。请使用左侧菜单管理各项配置。</p>
+    </div>
+</div>
+{% endblock %}

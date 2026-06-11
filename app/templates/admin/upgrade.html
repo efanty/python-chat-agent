@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+{% block title %}系统升级{% endblock %}
+{% block body %}
+<div class="admin-wrapper">
+    <div class="admin-sidebar" id="adminSidebar">
+        <div class="brand">
+            <i class="fas fa-tachometer-alt"></i> 管理后台
+            <button class="btn-theme-toggle ms-2" onclick="toggleTheme()" title="切换主题"><i class="fas fa-moon"></i></button>
+        </div>
+        <div class="admin-nav">
+            <div class="nav-section">概览</div>
+            <a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-home"></i> 控制面板</a>
+            <div class="nav-section">用户与权限</div>
+            <a href="{{ url_for('admin.users') }}"><i class="fas fa-users"></i> 用户管理</a>
+            <div class="nav-section">AI 配置</div>
+            <a href="{{ url_for('admin.agents') }}"><i class="fas fa-robot"></i> 智能体管理</a>
+            <a href="{{ url_for('admin.models') }}"><i class="fas fa-microchip"></i> LLM模型管理</a>
+            <a href="{{ url_for('admin.mcp_tools') }}"><i class="fas fa-tools"></i> MCP工具管理</a>
+            <a href="{{ url_for('admin.api_endpoints') }}"><i class="fas fa-plug"></i> API接口管理</a>
+            <a href="{{ url_for('admin.skills_list') }}"><i class="fas fa-puzzle-piece"></i> Skills管理</a>
+            <a href="{{ url_for('admin.knowledge_bases') }}"><i class="fas fa-database"></i> RAG知识库</a>
+            <a href="{{ url_for('admin.memories') }}"><i class="fas fa-brain"></i> 记忆管理</a>
+            <a href="{{ url_for('plugin_manager.index') }}"><i class="fas fa-brain"></i> 插件管理</a>
+            <div class="nav-section">安全</div>
+            <a href="{{ url_for('admin.blocked_ips') }}"><i class="fas fa-shield-alt"></i> IP封禁管理</a>
+            <div class="nav-section">系统</div>
+
+            <a href="{{ url_for('admin.site_settings') }}"><i class="fas fa-sliders-h"></i> 网站设置</a>
+            <a href="{{ url_for('admin.upgrade') }}" class="active"><i class="fas fa-sync-alt"></i> 系统升级</a>
+            <div class="nav-section">快捷操作</div>
+            <a href="{{ url_for('chat.index') }}"><i class="fas fa-comments"></i> 返回对话</a>
+            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> 退出登录</a>
+        </div>
+    </div>
+    <div class="admin-overlay" id="adminOverlay"></div>
+    <div class="admin-main">
+        <div class="d-flex align-items-center mb-3">
+            <button class="btn btn-sm btn-outline-light d-md-none me-2" id="adminSidebarToggle"><i class="fas fa-bars"></i></button>
+            <h4 class="mb-0 me-auto"><i class="fas fa-sync-alt"></i> 系统升级</h4>
+        </div>
+
+        <!-- Current version + Check update -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="card h-100" style="background:var(--bg-chat);border:1px solid var(--border-color);border-radius:12px;">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div><i class="fas fa-tag" style="font-size:2rem;color:var(--primary);"></i></div>
+                        <div>
+                            <strong>当前版本</strong>
+                            <div style="font-size:1.5rem;font-weight:700;" id="currentVersion">{{ current_version }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card h-100" style="background:var(--bg-chat);border:1px solid var(--border-color);border-radius:12px;">
+                    <div class="card-body">
+                        <h5><i class="fas fa-search"></i> 检查更新</h5>
+                        <div class="input-group" style="max-width:500px;">
+                            <input type="text" id="versionUrl" class="form-control" value="https://chat.imeason.cn/main/version" placeholder="https://chat.imeason.cn/main/version">
+                            <button class="btn btn-info" onclick="checkUpdate()"><i class="fas fa-cloud-download-alt"></i> 检查</button>
+                        </div>
+                        <div id="updateResult" class="mt-2 small" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Online upgrade -->
+        <div class="card mb-4" style="background:var(--bg-chat);border:1px solid var(--border-color);border-radius:12px;">
+            <div class="card-body">
+                <h5><i class="fas fa-cloud-download-alt"></i> 在线升级</h5>
+                <p class="text-muted small">输入升级包的下载地址（ZIP 格式），系统将自动完成下载、备份、解压、安装依赖和数据库迁移。</p>
+                <div class="input-group" style="max-width:600px;">
+                    <input type="text" id="upgradeUrl" class="form-control" value="https://chat.imeason.cn/main/upgrade/update_latest.zip" placeholder="https://example.com/upgrade-v2.0.0.zip">
+                    <button class="btn btn-primary" onclick="startOnlineUpgrade()"><i class="fas fa-cloud-download-alt"></i> 下载并升级</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Offline upgrade -->
+        <div class="card mb-4" style="background:var(--bg-chat);border:1px solid var(--border-color);border-radius:12px;">
+            <div class="card-body">
+                <h5><i class="fas fa-upload"></i> 离线升级</h5>
+                <p class="text-muted small">上传升级 ZIP 包（包含项目文件根目录结构），系统将自动完成备份、解压替换、安装依赖和数据库迁移。</p>
+                <div style="max-width:600px;">
+                    <input type="file" id="upgradeZip" accept=".zip" class="form-control mb-2">
+                    <button class="btn btn-success" onclick="startOfflineUpgrade()"><i class="fas fa-upload"></i> 上传并升级</button>
+                    <button class="btn btn-sm btn-link text-muted ms-2" onclick="toggleRequirements()" style="text-decoration:none;font-size:0.8rem;"><i class="fas fa-info-circle"></i> 升级包要求</button>
+                    <div id="upgradeRequirements" style="display:none;margin-top:12px;padding:12px;background:var(--bg-dark);border:1px solid var(--border-color);border-radius:8px;font-size:0.85rem;line-height:1.7;">
+                        <strong>ZIP 结构要求：</strong><br>
+                        解压后直接覆盖到项目根目录，内部第一级不应有额外文件夹。<br>
+                        <pre style="background:#0f172a;color:#e2e8f0;padding:8px;border-radius:4px;margin:6px 0;font-size:0.75rem;">
+upgrade.zip
+├── app/
+├── skills/
+├── requirements.txt
+├── run.py
+├── VERSION（可选，标注新版号）
+└── ...</pre>
+                        <strong>安全说明：</strong>
+                        <ul class="mb-0" style="padding-left:18px;">
+                            <li>自动排除 <code>venv/ chroma_data/ uploads/ logs/ backups/ __pycache__/</code></li>
+                            <li>被覆盖的原文件自动重命名为 <code>.bak</code>，可手动回滚</li>
+                            <li>打包前在项目根目录执行：<code>zip -r upgrade.zip app/ skills/ requirements.txt run.py VERSION</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log console (SSE real-time) -->
+        <div class="card" style="background:var(--bg-chat);border:1px solid var(--border-color);border-radius:12px;">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <h5 class="mb-0 me-auto"><i class="fas fa-terminal"></i> 升级日志</h5>
+                    <span id="logStatus" class="badge bg-secondary me-2" style="font-size:0.7rem;">等待中</span>
+                    <button class="btn btn-sm btn-outline-light me-1" onclick="clearUpgradeLogs()"><i class="fas fa-trash"></i> 清空</button>
+                    <button class="btn btn-sm btn-outline-light" onclick="fetchUpgradeLogs()"><i class="fas fa-sync"></i> 刷新</button>
+                </div>
+                <pre id="upgradeLog" style="background:#0f172a;color:#e2e8f0;padding:16px;border-radius:8px;height:300px;overflow-y:auto;font-size:0.8rem;line-height:1.6;">日志将在此显示...</pre>
+            </div>
+        </div>
+
+        <!-- One-click rollback -->
+        <div id="rollbackCard" class="card mt-4" style="background:var(--bg-chat);border:2px solid #f59e0b;border-radius:12px;">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div><i class="fas fa-undo-alt" style="font-size:2rem;color:#f59e0b;"></i></div>
+                    <div class="ms-3 flex-grow-1">
+                        <h5 class="mb-1" style="color:#f59e0b;">一键回滚</h5>
+                        <p class="mb-0 text-muted small">恢复到升级前的版本（备份于 <span id="rollbackBackupTime" class="text-light">-</span>）</p>
+                    </div>
+                    <button class="btn btn-warning" onclick="startRollback()"><i class="fas fa-undo-alt"></i> 回滚到升级前</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backup management + DB backup + Clean bak -->
+        <div id="backupCard" class="card mt-4" style="background:var(--bg-chat);border:1px solid var(--border-color);border-radius:12px;">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <h5 class="mb-0 me-auto"><i class="fas fa-archive"></i> 备份管理</h5>
+                    <button class="btn btn-sm btn-outline-info me-1" onclick="dbBackup()"><i class="fas fa-database"></i> 备份数据库</button>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="systemBackup()"><i class="fas fa-archive"></i> 备份系统</button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="cleanBak()"><i class="fas fa-broom"></i> 清理 .bak 文件</button>
+                </div>
+                {% if backups %}
+                <table class="table admin-table mt-2">
+                    <thead><tr><th>文件名</th><th>大小</th><th>时间</th><th>操作</th></tr></thead>
+                    <tbody>
+                    {% for b in backups %}
+                    <tr>
+                        <td>{% if b.name.startswith('db_') %}<i class="fas fa-database text-info me-1"></i>{% else %}<i class="fas fa-folder text-warning me-1"></i>{% endif %}{{ b.name }}</td>
+                        <td>{{ b.size }}</td>
+                        <td>{{ b.time }}</td>
+                        <td>
+                            {% if b.name.startswith('db_') %}
+                            <button class="btn btn-sm btn-outline-warning" onclick="restoreDb('{{ b.path }}')"><i class="fas fa-undo"></i> 恢复数据库</button>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline-warning" onclick="restoreBackup('{{ b.path }}')"><i class="fas fa-undo"></i> 恢复项目</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted small mt-2">暂无备份。升级时自动创建项目备份，也可手动备份数据库。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let sseSource = null;
+
+function startSSE() {
+    if (sseSource) sseSource.close();
+    document.getElementById('logStatus').textContent = 'SSE 已连接';
+    document.getElementById('logStatus').className = 'badge bg-success me-2';
+
+    sseSource = new EventSource('{{ url_for("admin.upgrade_logs_sse") }}');
+    sseSource.onmessage = function(e) {
+        if (e.data && e.data !== ': heartbeat') {
+            appendLog(e.data);
+            document.getElementById('logStatus').textContent = '接收中';
+            document.getElementById('logStatus').className = 'badge bg-success me-2';
+        }
+    };
+    sseSource.onerror = function() {
+        document.getElementById('logStatus').textContent = '断开';
+        document.getElementById('logStatus').className = 'badge bg-danger me-2';
+        // Auto-reconnect after 3s
+        setTimeout(startSSE, 3000);
+    };
+}
+
+// Start SSE on page load
+document.addEventListener('DOMContentLoaded', function() {
+    startSSE();
+    checkRollbackStatus();
+});
+
+function stopSSE() {
+    if (sseSource) { sseSource.close(); sseSource = null; }
+    document.getElementById('logStatus').textContent = '已停止';
+    document.getElementById('logStatus').className = 'badge bg-secondary me-2';
+}
+
+function appendLog(line) {
+    const el = document.getElementById('upgradeLog');
+    if (el.textContent === '日志将在此显示...') el.textContent = '';
+    el.textContent += line + '\n';
+    el.scrollTop = el.scrollHeight;
+}
+
+function fetchUpgradeLogs() {
+    fetch('{{ url_for("admin.upgrade_logs") }}?since=0')
+        .then(r => r.json()).then(d => {
+            const el = document.getElementById('upgradeLog');
+            el.textContent = d.lines.join('\n') || '日志将在此显示...';
+            el.scrollTop = el.scrollHeight;
+        });
+}
+
+function clearUpgradeLogs() {
+    fetch('{{ url_for("admin.upgrade_clear_logs") }}', {method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    }).then(() => { document.getElementById('upgradeLog').textContent = '日志将在此显示...'; });
+}
+
+function startOnlineUpgrade() {
+    const url = document.getElementById('upgradeUrl').value.trim();
+    if (!url) { alert('请输入升级包下载地址'); return; }
+    if (!confirm('确定要执行在线升级吗？系统将自动备份当前项目。')) return;
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('{{ url_for("admin.upgrade_online") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({url: url})
+    }).then(r => r.json()).then(d => {
+        if (d.needs_confirmation) {
+            var msg = '当前版本: ' + d.current_version + '，远程版本: ' + d.new_version + '。\n版本未升级，是否强制升级？';
+            if (confirm(msg)) {
+                fetch('{{ url_for("admin.upgrade_online") }}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+                    body: JSON.stringify({url: url, force: true, upgrade_token: d.upgrade_token})
+                }).then(function(r){ return r.json(); }).then(function(d2){
+                    startSSE();
+                    if (!d2.ok) appendLog('启动失败: ' + (d2.error || ''));
+                });
+            }
+            return;
+        }
+        if (d.ok) {
+            startSSE();
+        } else {
+            startSSE();
+            appendLog('启动失败: ' + (d.error || ''));
+        }
+    });
+}
+
+function startOfflineUpgrade() {
+    const fileInput = document.getElementById('upgradeZip');
+    if (!fileInput.files[0]) { alert('请选择 ZIP 文件'); return; }
+    if (!confirm('确定要执行离线升级吗？系统将自动备份当前项目。')) return;
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('{{ url_for("admin.upgrade_offline") }}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'},
+        body: formData
+    }).then(r => r.json()).then(d => {
+        if (d.needs_confirmation) {
+            var msg = '当前版本: ' + d.current_version + '，升级包版本: ' + d.new_version + '。\n版本未升级，是否强制升级？';
+            if (confirm(msg)) {
+                var formData2 = new FormData();
+                formData2.append('file', fileInput.files[0]);
+                formData2.append('force', '1');
+                fetch('{{ url_for("admin.upgrade_offline") }}', {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': '{{ csrf_token() }}'},
+                    body: formData2
+                }).then(function(r){ return r.json(); }).then(function(d2){
+                    startSSE();
+                    if (!d2.ok) appendLog('启动失败: ' + (d2.error || ''));
+                });
+            }
+            return;
+        }
+        if (d.ok) {
+            startSSE();
+        } else {
+            startSSE();
+            appendLog('启动失败: ' + (d.error || ''));
+        }
+    });
+}
+
+function restoreBackup(path) {
+    if (!confirm('确定要从该备份恢复项目吗？当前文件将被覆盖。')) return;
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('{{ url_for("admin.upgrade_restore") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({path: path})
+    }).then(r => r.json()).then(d => {
+        startSSE();
+        setTimeout(refreshBackupList, 2000);
+        if (!d.ok) appendLog('恢复启动失败: ' + (d.error || ''));
+    });
+}
+
+function restoreDb(path) {
+    if (!confirm('确定要从该备份恢复数据库吗？当前数据将被覆盖。')) return;
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('{{ url_for("admin.upgrade_db_restore") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({path: path})
+    }).then(r => r.json()).then(d => {
+        startSSE();
+        if (!d.ok) appendLog('数据库恢复启动失败: ' + (d.error || ''));
+    });
+}
+
+function checkUpdate() {
+    const url = document.getElementById('versionUrl').value.trim();
+    if (!url) { alert('请输入版本检查地址'); return; }
+    const resultEl = document.getElementById('updateResult');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<span class="text-muted">检查中...</span>';
+    fetch('{{ url_for("admin.upgrade_check_update") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({url: url})
+    }).then(r => r.json()).then(d => {
+        if (d.error) {
+            resultEl.innerHTML = '<span class="text-danger">检查失败: ' + d.error + '</span>';
+            return;
+        }
+        let html = '当前: <strong>' + d.current + '</strong>';
+        html += ' &rarr; 远程: <strong>' + d.remote + '</strong>';
+        if (d.is_newer) {
+            html += ' <span class="text-success"><i class="fas fa-arrow-up"></i> 有新版本可用</span>';
+            if (d.release_url) html += '<br><a href="' + d.release_url + '" target="_blank" class="text-info">查看发布说明</a>';
+            if (d.changelog) html += '<br><small class="text-muted">' + d.changelog + '</small>';
+        } else {
+            html += ' <span class="text-muted">已是最新版本</span>';
+        }
+        resultEl.innerHTML = html;
+    }).catch(e => {
+        resultEl.innerHTML = '<span class="text-danger">请求失败: ' + e.message + '</span>';
+    });
+}
+
+function dbBackup() {
+    if (!confirm('确定要备份当前数据库吗？')) return;
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('{{ url_for("admin.upgrade_db_backup") }}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    }).then(() => { startSSE(); setTimeout(refreshBackupList, 2000); });
+}
+
+function refreshBackupList() {
+    fetch('{{ url_for("admin.upgrade_backup_list") }}')
+        .then(r => r.json())
+        .then(backups => {
+            const container = document.querySelector('#backupCard .card-body');
+            if (!container) return;
+            let html = '<div class="d-flex align-items-center mb-2">' +
+                '<h5 class="mb-0 me-auto"><i class="fas fa-archive"></i> 备份管理</h5>' +
+                '<button class="btn btn-sm btn-outline-info me-1" onclick="dbBackup()"><i class="fas fa-database"></i> 备份数据库</button>' +
+                '<button class="btn btn-sm btn-outline-primary me-1" onclick="systemBackup()"><i class="fas fa-archive"></i> 备份系统</button>' +
+                '<button class="btn btn-sm btn-outline-warning" onclick="cleanBak()"><i class="fas fa-broom"></i> 清理 .bak 文件</button></div>';
+            if (backups.length) {
+                html += '<table class="table admin-table mt-2"><thead><tr><th>文件名</th><th>大小</th><th>时间</th><th>操作</th></tr></thead><tbody>';
+                backups.forEach(b => {
+                    const isDb = b.name.startsWith('db_');
+                    html += '<tr><td>' + (isDb ? '<i class="fas fa-database text-info me-1"></i>' : '<i class="fas fa-folder text-warning me-1"></i>') + escHtml(b.name) + '</td>' +
+                        '<td>' + b.size + '</td><td>' + b.time + '</td>' +
+                        '<td><button class="btn btn-sm btn-outline-warning" onclick="' +
+                        (isDb ? "restoreDb('" + escHtml(b.path) + "')" : "restoreBackup('" + escHtml(b.path) + "')") +
+                        '"><i class="fas fa-undo"></i> ' + (isDb ? '恢复数据库' : '恢复项目') + '</button></td></tr>';
+                });
+                html += '</tbody></table>';
+            } else {
+                html += '<p class="text-muted small mt-2">暂无备份。</p>';
+            }
+            container.innerHTML = html;
+            checkRollbackStatus();
+        });
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function cleanBak() {
+    if (!confirm('确定要清理所有 .bak 文件吗？')) return;
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('{{ url_for("admin.upgrade_clean_bak") }}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    }).then(() => { startSSE(); setTimeout(refreshBackupList, 2000); });
+}
+
+function checkRollbackStatus() {
+    fetch('{{ url_for("admin.upgrade_status") }}')
+        .then(r => r.json())
+        .then(s => {
+            const card = document.getElementById('rollbackCard');
+            if (s.can_rollback) {
+                card.style.display = 'block';
+                // Extract timestamp from backup filename: backup_20260510_123456.zip
+                const m = s.last_backup.match(/backup_(\d{8})_(\d{6})/);
+                if (m) document.getElementById('rollbackBackupTime').textContent = m[1] + ' ' + m[2];
+            } else {
+                card.style.display = 'none';
+            }
+        });
+}
+
+function startRollback() {
+    if (!confirm('确定要回滚到升级前的版本吗？当前所有更改将被覆盖。')) return;
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('{{ url_for("admin.upgrade_rollback") }}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    }).then(r => r.json()).then(d => {
+        startSSE();
+        if (!d.ok) appendLog('回滚启动失败: ' + (d.error || ''));
+    });
+    // Hide rollback card during rollback
+    document.getElementById('rollbackCard').style.display = 'none';
+}
+
+function toggleRequirements() {
+    const el = document.getElementById('upgradeRequirements');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function systemBackup() {
+    if (!confirm('确定要备份整个系统项目吗？')) return;
+    document.getElementById('upgradeLog').textContent = '';
+    stopSSE();
+    fetch('/admin/settings/upgrade/system-backup', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    }).then(function(r){ return r.json(); }).then(function(d){
+        startSSE();
+        if (!d.ok) appendLog('启动失败: ' + (d.error || ''));
+        setTimeout(refreshBackupList, 2000);
+    });
+}
+</script>
+{% endblock %}

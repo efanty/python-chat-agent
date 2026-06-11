@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}MCP工具管理{% endblock %}
+{% block body %}
+<div class="admin-wrapper">
+    <div class="admin-sidebar" id="adminSidebar">
+        <div class="brand">
+            <i class="fas fa-tachometer-alt"></i> 管理后台
+            <button class="btn-theme-toggle ms-2" onclick="toggleTheme()" title="切换主题"><i class="fas fa-moon"></i></button>
+        </div>
+        <div class="admin-nav">
+            <div class="nav-section">概览</div>
+            <a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-home"></i> 控制面板</a>
+            <div class="nav-section">用户与权限</div>
+            <a href="{{ url_for('admin.users') }}"><i class="fas fa-users"></i> 用户管理</a>
+            <div class="nav-section">AI 配置</div>
+            <a href="{{ url_for('admin.agents') }}"><i class="fas fa-robot"></i> 智能体管理</a>
+            <a href="{{ url_for('admin.models') }}"><i class="fas fa-microchip"></i> LLM模型管理</a>
+            <a href="{{ url_for('admin.mcp_tools') }}" class="active"><i class="fas fa-tools"></i> MCP工具管理</a>
+            <a href="{{ url_for('admin.api_endpoints') }}"><i class="fas fa-plug"></i> API接口管理</a>
+            <a href="{{ url_for('admin.skills_list') }}"><i class="fas fa-puzzle-piece"></i> Skills管理</a>
+            <a href="{{ url_for('admin.knowledge_bases') }}"><i class="fas fa-database"></i> RAG知识库</a>
+            <a href="{{ url_for('admin.memories') }}"><i class="fas fa-brain"></i> 记忆管理</a>
+            <a href="{{ url_for('plugin_manager.index') }}"><i class="fas fa-brain"></i> 插件管理</a>
+            <div class="nav-section">安全</div>
+            <a href="{{ url_for('admin.blocked_ips') }}"><i class="fas fa-shield-alt"></i> IP封禁管理</a>
+            <div class="nav-section">系统</div>
+
+            <a href="{{ url_for('admin.site_settings') }}"><i class="fas fa-sliders-h"></i> 网站设置</a>
+            <a href="{{ url_for('admin.upgrade') }}"><i class="fas fa-sync-alt"></i> 系统升级</a>
+            <div class="nav-section">快捷操作</div>
+            <a href="{{ url_for('chat.index') }}"><i class="fas fa-comments"></i> 返回对话</a>
+            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> 退出登录</a>
+        </div>
+    </div>
+    <div class="admin-overlay" id="adminOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
+    <div class="admin-main">
+        <div class="d-flex align-items-center mb-3">
+            <button class="btn btn-sm btn-outline-light d-md-none me-2" id="adminSidebarToggle"><i class="fas fa-bars"></i></button>
+            <h4 class="mb-0 me-auto">MCP工具管理</h4>
+            <button class="btn btn-outline-secondary btn-sm me-2" onclick="openSearchModal('mcp-tools')" title="搜索"><i class="fas fa-search"></i></button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addMcpModal"><i class="fas fa-plus"></i> 添加工具</button>
+        </div>
+        <div class="table-responsive">
+            <table class="table admin-table">
+                <thead><tr><th>ID</th><th>名称</th><th>类型</th><th>描述</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for tool in mcp_tools %}
+                <tr>
+                    <td>{{ tool.id }}</td>
+                    <td>{{ tool.name }}</td>
+                    <td><span class="badge bg-secondary">{{ tool.tool_type }}</span></td>
+                    <td><code>{{ tool.description }}</code></td>
+                    <td>{% if tool.is_active %}<span class="text-success">启用</span>{% else %}<span class="text-danger">禁用</span>{% endif %}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-info" onclick="testMcpTool({{ tool.id }})" title="测试连通性"><i class="fas fa-plug"></i></button>
+                        <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editMcpModal{{ tool.id }}"><i class="fas fa-edit"></i></button>
+                        <form method="POST" action="{{ url_for('admin.mcp_tool_delete', tool_id=tool.id) }}" style="display:inline;" onsubmit="return confirm('确定删除？')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button></form>
+                    </td>
+                </tr>
+                <!-- Edit MCP Tool Modal -->
+                <div class="modal fade" id="editMcpModal{{ tool.id }}" tabindex="-1">
+                    <div class="modal-dialog"><div class="modal-content">
+                        <form method="POST" action="{{ url_for('admin.mcp_tool_edit', tool_id=tool.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="modal-header"><h5 class="modal-title">编辑工具 #{{ tool.id }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                            <div class="modal-body">
+                                <div class="mb-2"><label class="form-label">名称</label><input type="text" name="name" class="form-control" value="{{ tool.name }}" required></div>
+                                <div class="mb-2"><label class="form-label">描述</label><textarea name="description" class="form-control" rows="2">{{ tool.description or '' }}</textarea></div>
+                                <div class="mb-2"><label class="form-label">类型</label><select name="tool_type" class="form-select"><option value="custom" {% if tool.tool_type=='custom' %}selected{% endif %}>自定义</option><option value="builtin" {% if tool.tool_type=='builtin' %}selected{% endif %}>内置</option><option value="mcp_server" {% if tool.tool_type=='mcp_server' %}selected{% endif %}>MCP服务</option></select></div>
+                                <div class="mb-2"><label class="form-label">传输协议</label><select name="transport" class="form-select"><option value="stdio" {% if tool.transport=='stdio' %}selected{% endif %}>stdio</option><option value="sse" {% if tool.transport=='sse' %}selected{% endif %}>SSE</option><option value="streamable_http" {% if tool.transport=='streamable_http' %}selected{% endif %}>Streamable HTTP</option></select></div>
+                                <div class="mb-2"><label class="form-label">命令 (stdio)</label><input type="text" name="command" class="form-control" value="{{ tool.command or '' }}"></div>
+                                <div class="mb-2"><label class="form-label">端点 (SSE / Streamable HTTP)</label><input type="text" name="endpoint" class="form-control" value="{{ tool.endpoint or '' }}"></div>
+                                <div class="mb-2"><label class="form-label">参数 (JSON)</label><input type="text" name="args" class="form-control" value="{{ tool.args or '' }}"></div>
+                                <div class="mb-2"><label class="form-label">环境变量 (JSON)</label><input type="text" name="env_vars" class="form-control" value="{{ tool.env_vars or '' }}"></div>
+                                <div class="form-check"><input type="checkbox" name="is_active" value="true" class="form-check-input" {% if tool.is_active %}checked{% endif %}><label class="form-check-label">激活</label></div>
+                            </div>
+                            <div class="modal-footer"><button type="submit" class="btn btn-primary">保存</button></div>
+                        </form>
+                    </div></div>
+                </div>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin.mcp_tools', page=pagination.prev_num, per_page=pagination.per_page) }}" aria-label="Previous">&laquo;</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.mcp_tools', page=page_num, per_page=pagination.per_page) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin.mcp_tools', page=pagination.next_num, per_page=pagination.per_page) }}" aria-label="Next">&raquo;</a>
+                </li>
+            </ul>
+            <p class="text-muted text-center small mb-0">共 {{ pagination.total }} 条记录，每页 {{ pagination.per_page }} 条</p>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add MCP Modal -->
+<div class="modal fade" id="addMcpModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <form method="POST" action="{{ url_for('admin.mcp_tool_add') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-header"><h5 class="modal-title">添加MCP工具</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2"><label class="form-label">名称</label><input type="text" name="name" class="form-control" required></div>
+                <div class="mb-2"><label class="form-label">描述</label><textarea name="description" class="form-control" rows="2"></textarea></div>
+                <div class="mb-2"><label class="form-label">类型</label><select name="tool_type" class="form-select"><option value="custom">自定义</option><option value="builtin">内置</option><option value="mcp_server">MCP服务</option></select></div>
+                <div class="mb-2"><label class="form-label">传输协议</label><select name="transport" class="form-select"><option value="stdio">stdio</option><option value="sse" selected>SSE</option><option value="streamable_http">Streamable HTTP</option></select></div>
+                <div class="mb-2"><label class="form-label">命令 (stdio)</label><input type="text" name="command" class="form-control"></div>
+                <div class="mb-2"><label class="form-label">端点 (SSE / Streamable HTTP)</label><input type="text" name="endpoint" class="form-control"></div>
+                <div class="mb-2"><label class="form-label">参数 (JSON)</label><input type="text" name="args" class="form-control"></div>
+                <div class="mb-2"><label class="form-label">环境变量 (JSON)</label><input type="text" name="env_vars" class="form-control"></div>
+                <div class="form-check"><input type="checkbox" name="is_active" value="true" class="form-check-input" checked><label class="form-check-label">激活</label></div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">添加</button></div>
+        </form>
+    </div></div>
+</div>
+
+<!-- Test Result Modal -->
+<div class="modal fade" id="testResultModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">连通性测试</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body" id="testResultBody"><p>测试中...</p></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button></div>
+    </div></div>
+</div>
+
+<script>
+function testMcpTool(id) {
+    const body = document.getElementById('testResultBody');
+    body.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> 测试中...</p>';
+    new bootstrap.Modal(document.getElementById('testResultModal')).show();
+    fetch('/admin/mcp-tools/' + id + '/test')
+        .then(r => r.json()).then(d => {
+            let html = '<p><strong>' + d.name + '</strong> (' + d.type + ')</p>';
+            html += '<hr><p><i class="fas fa-' + (d.success ? 'check-circle text-success' : 'times-circle text-danger') + '"></i> ';
+            html += d.success ? '<span class="text-success">连接成功</span>' : '<span class="text-danger">连接失败</span>';
+            html += ' <small class="text-muted">' + d.latency_ms + 'ms</small></p>';
+            html += '<p class="small">' + d.detail + '</p>';
+            if (d.tools && d.tools.length) {
+                html += '<p class="small mb-0"><strong>子工具:</strong></p><ul class="small">';
+                d.tools.forEach(t => { html += '<li>' + t + '</li>'; });
+                html += '</ul>';
+            }
+            body.innerHTML = html;
+        }).catch(e => {
+            body.innerHTML = '<p class="text-danger">请求失败: ' + e.message + '</p>';
+        });
+}
+</script>
+
+
+
+<!-- Search Modal -->
+<div class="modal fade" id="searchModal_mcp-tools" tabindex="-1">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title"><i class="fas fa-search"></i> 搜索</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" id="searchInput_mcp-tools" placeholder="输入关键词，按 Enter 搜索..." onkeydown="if(event.key==='Enter') adminSearch('mcp-tools')">
+                <button class="btn btn-primary" onclick="adminSearch('mcp-tools')"><i class="fas fa-search"></i> 搜索</button>
+            </div>
+            <div id="searchResults_mcp-tools">
+                <div class="text-muted text-center py-3">输入关键词开始搜索</div>
+            </div>
+        </div>
+
+<script>
+function openSearchModal(module) {
+    var modal = new bootstrap.Modal(document.getElementById('searchModal_' + module));
+    modal.show();
+    setTimeout(function() {
+        var input = document.getElementById('searchInput_' + module);
+        if (input) { input.focus(); input.select(); }
+    }, 300);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function adminSearch(module) {
+    var input = document.getElementById('searchInput_' + module);
+    var results = document.getElementById('searchResults_' + module);
+    var q = input.value.trim();
+    if (!q) {
+        results.innerHTML = '<div class="text-muted text-center py-3">请输入关键词</div>';
+        return;
+    }
+    results.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> 搜索中...</div>';
+    fetch('/admin/search/' + module + '?q=' + encodeURIComponent(q))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) {
+            results.innerHTML = '<div class="text-danger text-center py-3">' + escapeHtml(data.error) + '</div>';
+            return;
+        }
+        if (data.results.length === 0) {
+            results.innerHTML = '<div class="text-muted text-center py-3">未找到匹配结果</div>';
+            return;
+        }
+        var html = '<div class="list-group">';
+        data.results.forEach(function(item) {
+            var activeLabel = item.active ? '<span class="badge bg-success ms-1">启用</span>' : '<span class="badge bg-secondary ms-1">禁用</span>';
+            var modalAttr = item.editModalId ? ' data-modal-id="' + item.editModalId + '"' : '';
+            html += '<div class="list-group-item d-flex align-items-center justify-content-between' + (item.editModalId ? ' search-result-item\" style="cursor:pointer"' : '\"') + modalAttr + '>';
+            html += '<div class="flex-grow-1 me-2"><strong>' + escapeHtml(item.name) + '</strong> ' + activeLabel;
+            if (item.description) html += '<br><small class="text-muted">' + escapeHtml(item.description) + '</small>';
+            if (item.badge) html += '<br><span class="badge bg-info mt-1">' + escapeHtml(String(item.badge).substring(0, 60)) + '</span>';
+            html += '</div></div>';
+        });
+        html += '</div>';
+        html += '<div class="text-muted small text-center mt-2">共 ' + data.total + ' 条结果</div>';
+        results.innerHTML = html;
+        results.querySelectorAll('.search-result-item').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var modalId = this.getAttribute('data-modal-id');
+                if (modalId) closeSearchAndOpenEdit(modalId);
+            });
+        });
+    })
+    .catch(function(e) {
+        results.innerHTML = '<div class="text-danger text-center py-3">请求失败: ' + e.message + '</div>';
+    });
+}
+
+function closeSearchAndOpenEdit(modalId) {
+    // Close any open modal
+    var openModal = document.querySelector('.modal.show');
+    if (openModal) {
+        var inst = bootstrap.Modal.getInstance(openModal);
+        if (inst) inst.hide();
+    }
+    // Open the edit modal
+    setTimeout(function() {
+        var el = document.querySelector(modalId);
+        if (el) {
+            var editModal = new bootstrap.Modal(el);
+            editModal.show();
+        }
+    }, 400);
+}
+</script>
+{% endblock %}
+
+
+

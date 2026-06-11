@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}首页{% endblock %}
+{% block body %}
+<div class="landing-wrapper">
+    <h1><i class="fas fa-robot"></i> {{ site_name }}</h1>
+    <p>{{ site_description }} — 基于 LangChain 和 DeepAgents 的强大智能体对话系统</p>
+    <div>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> 登录</a>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-secondary"><i class="fas fa-user-plus"></i> 注册</a>
+    </div>
+    <div class="features-grid">
+        <div class="feature-card">
+            <i class="fas fa-brain"></i>
+            <h5>多智能体支持</h5>
+            <p>支持创建多个智能体，每个智能体可配置不同的系统提示词、工具和知识库。</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-microchip"></i>
+            <h5>多模型切换</h5>
+            <p>支持 OpenAI、Anthropic、DeepSeek 等多种 LLM，管理员可以按用户等级分配使用权限。</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-shield-alt"></i>
+            <h5>TOTP 双因素认证</h5>
+            <p>支持 TOTP 两步验证，管理员可全局启停或针对单个用户启停，保障账户安全。</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-tools"></i>
+            <h5>MCP 工具 & API</h5>
+            <p>支持 MCP 工具协议和自定义 API 接口，让智能体拥有强大的外部交互能力。</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-puzzle-piece"></i>
+            <h5>模块化 Skills</h5>
+            <p>遵循 Anthropic Skills 标准，技能模块化加载，按需使用。</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-database"></i>
+            <h5>RAG 知识库</h5>
+            <p>集成 Chroma 向量数据库，支持知识库管理和语义检索。</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-lock"></i>
+            <h5>沙箱执行</h5>
+            <p>智能体代码在本地沙箱中安全运行，仅限指定目录，保障系统安全。</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-mobile-alt"></i>
+            <h5>响应式设计</h5>
+            <p>基于 Bootstrap 5，完美适配手机端和电脑端，随时随地使用。</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}网站设置{% endblock %}
+{% block body %}
+<div class="admin-wrapper">
+    <div class="admin-sidebar" id="adminSidebar">
+        <div class="brand">
+            <i class="fas fa-tachometer-alt"></i> 管理后台
+            <button class="btn-theme-toggle ms-2" onclick="toggleTheme()" title="切换主题"><i class="fas fa-moon"></i></button>
+        </div>
+        <div class="admin-nav">
+            <div class="nav-section">概览</div>
+            <a href="{{ url_for('admin.dashboard') }}"><i class="fas fa-home"></i> 控制面板</a>
+            <div class="nav-section">用户与权限</div>
+            <a href="{{ url_for('admin.users') }}"><i class="fas fa-users"></i> 用户管理</a>
+            <div class="nav-section">AI 配置</div>
+            <a href="{{ url_for('admin.agents') }}"><i class="fas fa-robot"></i> 智能体管理</a>
+            <a href="{{ url_for('admin.models') }}"><i class="fas fa-microchip"></i> LLM模型管理</a>
+            <a href="{{ url_for('admin.mcp_tools') }}"><i class="fas fa-tools"></i> MCP工具管理</a>
+            <a href="{{ url_for('admin.api_endpoints') }}"><i class="fas fa-plug"></i> API接口管理</a>
+            <a href="{{ url_for('admin.skills_list') }}"><i class="fas fa-puzzle-piece"></i> Skills管理</a>
+            <a href="{{ url_for('admin.knowledge_bases') }}"><i class="fas fa-database"></i> RAG知识库</a>
+            <a href="{{ url_for('admin.memories') }}"><i class="fas fa-brain"></i> 记忆管理</a>
+            <a href="{{ url_for('plugin_manager.index') }}"><i class="fas fa-brain"></i> 插件管理</a>
+            <div class="nav-section">安全</div>
+            <a href="{{ url_for('admin.blocked_ips') }}"><i class="fas fa-shield-alt"></i> IP封禁管理</a>
+            <div class="nav-section">系统</div>
+
+            <a href="{{ url_for('admin.site_settings') }}" class="active"><i class="fas fa-sliders-h"></i> 网站设置</a>
+            <a href="{{ url_for('admin.upgrade') }}"><i class="fas fa-sync-alt"></i> 系统升级</a>
+            <div class="nav-section">快捷操作</div>
+            <a href="{{ url_for('chat.index') }}"><i class="fas fa-comments"></i> 返回对话</a>
+            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> 退出登录</a>
+        </div>
+    </div>
+    <div class="admin-overlay" id="adminOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;"></div>
+    <div class="admin-main">
+        <div class="d-flex align-items-center mb-3">
+            <button class="btn btn-sm btn-outline-light d-md-none me-2" id="adminSidebarToggle"><i class="fas fa-bars"></i></button>
+            <h4 class="mb-0 me-auto">网站设置</h4>
+        </div>
+
+        <ul class="nav nav-tabs mb-3" id="settingsTab" role="tablist">
+            <li class="nav-item" role="presentation"><button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button">基本</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="llm-tab" data-bs-toggle="tab" data-bs-target="#llm" type="button">LLM</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="rate-tab" data-bs-toggle="tab" data-bs-target="#rate" type="button">速率限制</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="timeout-tab" data-bs-toggle="tab" data-bs-target="#timeout" type="button">超时和截断</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="mail-tab" data-bs-toggle="tab" data-bs-target="#mail" type="button">邮件</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button">安全</button></li>
+        </ul>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="tab-content">
+                {% set s = settings %}
+
+                {# ── 基本 ── #}
+                <div class="tab-pane fade show active" id="basic">
+                    <div class="row g-3" style="max-width:700px;">
+                        <div class="col-12"><label class="form-label">网站名称</label><input type="text" name="site_name" class="form-control" value="{{ s.get('site_name', 'DeepAgent Chat') }}"></div>
+                        <div class="col-12"><label class="form-label">网站描述</label><input type="text" name="site_description" class="form-control" value="{{ s.get('site_description', '智能体对话平台') }}"></div>
+                        <div class="col-12">
+                            <div class="form-check mb-2"><input type="checkbox" name="maintenance_mode" value="true" class="form-check-input" {% if s.get('maintenance_mode', 'false') == 'true' %}checked{% endif %} id="chk_maint"><label class="form-check-label" for="chk_maint">维护模式（关闭网站访问，管理员可正常登录后台）</label></div>
+                            <div class="form-check mb-2"><input type="checkbox" name="registration_enabled" value="true" class="form-check-input" {% if s.get('registration_enabled', 'true') == 'true' %}checked{% endif %} id="chk_reg"><label class="form-check-label" for="chk_reg">开放用户注册</label></div>
+                            <div class="form-check mb-2"><input type="checkbox" name="email_verification_required" value="true" class="form-check-input" {% if s.get('email_verification_required', 'false') == 'true' %}checked{% endif %} id="chk_email"><label class="form-check-label" for="chk_email">要求邮箱验证（用户注册后需验证邮箱才能登录）</label></div>
+                        </div>
+                        <div class="col-12"><label class="form-label">全局TOTP要求</label>
+                            <select name="totp_global_required" class="form-select">
+                                <option value="false" {% if s.get('totp_global_required', 'false') == 'false' %}selected{% endif %}>关闭（用户自选）</option>
+                                <option value="true" {% if s.get('totp_global_required', 'false') == 'true' %}selected{% endif %}>开启（强制所有人）</option>
+                            </select>
+                            <small class="text-muted">开启后所有用户登录都需要TOTP验证</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">时区</label>
+                            <select name="app_timezone" class="form-select">
+                                <option value="Asia/Shanghai" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Asia/Shanghai' %}selected{% endif %}>Asia/Shanghai (UTC+8, 北京时间)</option>
+                                <option value="Asia/Tokyo" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Asia/Tokyo' %}selected{% endif %}>Asia/Tokyo (UTC+9)</option>
+                                <option value="Asia/Seoul" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Asia/Seoul' %}selected{% endif %}>Asia/Seoul (UTC+9)</option>
+                                <option value="Asia/Singapore" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Asia/Singapore' %}selected{% endif %}>Asia/Singapore (UTC+8)</option>
+                                <option value="Asia/Hong_Kong" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Asia/Hong_Kong' %}selected{% endif %}>Asia/Hong_Kong (UTC+8)</option>
+                                <option value="Asia/Taipei" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Asia/Taipei' %}selected{% endif %}>Asia/Taipei (UTC+8)</option>
+                                <option value="Asia/Kolkata" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Asia/Kolkata' %}selected{% endif %}>Asia/Kolkata (UTC+5:30)</option>
+                                <option value="Europe/London" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Europe/London' %}selected{% endif %}>Europe/London (UTC+0/+1)</option>
+                                <option value="Europe/Berlin" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Europe/Berlin' %}selected{% endif %}>Europe/Berlin (UTC+1/+2)</option>
+                                <option value="Europe/Paris" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Europe/Paris' %}selected{% endif %}>Europe/Paris (UTC+1/+2)</option>
+                                <option value="America/New_York" {% if s.get('app_timezone', 'Asia/Shanghai') == 'America/New_York' %}selected{% endif %}>America/New_York (UTC-5/-4)</option>
+                                <option value="America/Chicago" {% if s.get('app_timezone', 'Asia/Shanghai') == 'America/Chicago' %}selected{% endif %}>America/Chicago (UTC-6/-5)</option>
+                                <option value="America/Denver" {% if s.get('app_timezone', 'Asia/Shanghai') == 'America/Denver' %}selected{% endif %}>America/Denver (UTC-7/-6)</option>
+                                <option value="America/Los_Angeles" {% if s.get('app_timezone', 'Asia/Shanghai') == 'America/Los_Angeles' %}selected{% endif %}>America/Los_Angeles (UTC-8/-7)</option>
+                                <option value="Pacific/Auckland" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Pacific/Auckland' %}selected{% endif %}>Pacific/Auckland (UTC+12/+13)</option>
+                                <option value="Australia/Sydney" {% if s.get('app_timezone', 'Asia/Shanghai') == 'Australia/Sydney' %}selected{% endif %}>Australia/Sydney (UTC+10/+11)</option>
+                                <option value="UTC" {% if s.get('app_timezone', 'Asia/Shanghai') == 'UTC' %}selected{% endif %}>UTC (协调世界时)</option>
+                            </select>
+                            <small class="text-muted">用于界面时间显示和备份文件时间戳</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">每页显示数据条数</label>
+                            <input type="number" name="admin_per_page" class="form-control" value="{{ s.get('admin_per_page', '20') }}" min="5" max="200">
+                            <small class="text-muted">管理后台列表每页显示的记录数，默认 20</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">最大文件上传 (MB)</label>
+                            <input type="number" name="max_upload_size_mb" class="form-control" value="{{ s.get('max_upload_size_mb', '16') }}" min="1" max="1024">
+                            <small class="text-muted">聊天上传文件大小上限</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">允许上传的文件扩展名</label>
+                            <input type="text" name="allowed_upload_extensions" class="form-control" value="{{ s.get('allowed_upload_extensions', 'txt,pdf,png,jpg,jpeg,gif,webp,csv,json,xml,yaml,yml,py,js,ts,html,css,md,sql,sh,xlsx,xlsm,docx,pptx') }}">
+                            <small class="text-muted">逗号分隔，不包含点，如 <code>txt,pdf,docx</code></small>
+                        </div>
+                        <div class="col-12"><label class="form-label">界面主题</label>
+                            <select name="BOOTSWATCH_THEMES" class="form-select">
+                                {% set themes = [('cerulean','Cerulean'),('cosmo','Cosmo'),('cyborg','Cyborg'),('darkly','Darkly'),('flatly','Flatly'),('journal','Journal'),('litera','Litera'),('lumen','Lumen'),('lux','Lux'),('materia','Materia'),('minty','Minty'),('pulse','Pulse'),('sandstone','Sandstone'),('simplex','Simplex'),('sketchy','Sketchy'),('slate','Slate'),('solar','Solar'),('spacelab','Spacelab'),('superhero','Superhero'),('united','United'),('yeti','Yeti')] %}
+                                {% for val, label in themes %}
+                                <option value="{{ val }}" {% if s.get('BOOTSWATCH_THEMES', 'cosmo') == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">保存后刷新页面即可看到新主题</small>
+                        </div>
+                        <div class="col-6"><label class="form-label">验证令牌过期 (秒)</label>
+                            <input type="number" name="email_verify_token_expiry" class="form-control" value="{{ s.get('email_verify_token_expiry', '86400') }}" min="300" max="604800">
+                            <small class="text-muted">邮箱验证链接有效期，默认 86400 (24h)</small>
+                        </div>
+                        <div class="col-6"><label class="form-label">重置令牌过期 (秒)</label>
+                            <input type="number" name="password_reset_token_expiry" class="form-control" value="{{ s.get('password_reset_token_expiry', '3600') }}" min="300" max="86400">
+                            <small class="text-muted">密码重置链接有效期，默认 3600 (1h)</small>
+                        </div>
+                    </div>
+                </div>
+
+                {# ── LLM ── #}
+                <div class="tab-pane fade" id="llm">
+                    <div class="row g-3" style="max-width:700px;">
+                        <div class="col-12"><label class="form-label">历史消息上限 (history_message_limit)</label>
+                            <input type="number" name="history_message_limit" class="form-control" value="{{ s.get('history_message_limit', '20') }}" min="1" max="200">
+                            <small class="text-muted">每次请求传给 LLM 的最新消息数量</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">LLM Max Tokens (llm_max_tokens)</label>
+                            <input type="number" name="llm_max_tokens" class="form-control" value="{{ s.get('llm_max_tokens', '4096') }}" min="256" max="32768">
+                            <small class="text-muted">LLM 单次响应的最大 token 数</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">LLM Temperature (llm_temperature)</label>
+                            <input type="text" name="llm_temperature" class="form-control" value="{{ s.get('llm_temperature', '0.7') }}" step="0.1" min="0" max="2">
+                            <small class="text-muted">生成随机性，0.0=保守，1.0=创意，2.0=随机</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">最大工具调用轮次 (max_tool_rounds)</label>
+                            <input type="number" name="max_tool_rounds" class="form-control" value="{{ s.get('max_tool_rounds', '25') }}" min="1" max="100">
+                            <small class="text-muted">每次回复中最多调用工具的轮次</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">工具结果截断 (tool_result_max_chars)</label>
+                            <input type="number" name="tool_result_max_chars" class="form-control" value="{{ s.get('tool_result_max_chars', '2000') }}" min="100" max="50000">
+                            <small class="text-muted">工具返回结果传给 LLM 的最大字符数</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">Text Embedding模型Rag分割每个批次的尺寸 (batch_size)</label>
+                            <input type="number" name="batch_size" class="form-control" value="{{ s.get('batch_size', '10') }}" min="1" max="1000">
+                            <small class="text-muted">批次大小指单次API调用中能处理的文本数量上限。例如，text-embedding-v4的批次大小为10，意味着一次请求最多可传入10个文本进行向量化，且每个文本不得超过 8192 个Token。</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">用户记忆上限 (user_memory_limit)</label>
+                            <input type="number" name="user_memory_limit" class="form-control" value="{{ s.get('user_memory_limit', '30') }}" min="0" max="200">
+                            <small class="text-muted">每条消息注入系统提示的用户记忆条数，0=禁用</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">文件内联截断 (file_inline_max_chars)</label>
+                            <input type="number" name="file_inline_max_chars" class="form-control" value="{{ s.get('file_inline_max_chars', '5000') }}" min="500" max="50000">
+                            <small class="text-muted">上传文本文件时内联注入到 LLM 的最大字符数</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">Fallback 预览长度 (fallback_msg_preview_chars)</label>
+                            <input type="number" name="fallback_msg_preview_chars" class="form-control" value="{{ s.get('fallback_msg_preview_chars', '100') }}" min="20" max="500">
+                            <small class="text-muted">无可用模型时 fallback 消息中显示的用户消息预览字符数</small>
+                        </div>
+                    </div>
+                </div>
+
+                {# ── 速率限制 ── #}
+                <div class="tab-pane fade" id="rate">
+                    <div class="row g-3" style="max-width:700px;">
+                        <div class="col-12"><label class="form-label">登录频率限制 (login_rate_limit)</label>
+                            <input type="text" name="login_rate_limit" class="form-control" value="{{ s.get('login_rate_limit', '10 per minute') }}">
+                            <small class="text-muted">格式: "次数 per time"，如 "5 per minute"、"100 per hour"、"1000 per day"</small>
+                        </div>
+                        <div class="col-12"><label class="form-label">TOTP 频率限制 (totp_rate_limit)</label>
+                            <input type="text" name="totp_rate_limit" class="form-control" value="{{ s.get('totp_rate_limit', '10 per minute') }}">
+                        </div>
+                        <div class="col-12"><label class="form-label">注册频率限制 (register_rate_limit)</label>
+                            <input type="text" name="register_rate_limit" class="form-control" value="{{ s.get('register_rate_limit', '3 per minute') }}">
+                        </div>
+                        <div class="col-12"><label class="form-label">忘记密码频率限制 (forgot_password_rate_limit)</label>
+                            <input type="text" name="forgot_password_rate_limit" class="form-control" value="{{ s.get('forgot_password_rate_limit', '3 per minute') }}">
+                        </div>
+                    </div>
+                </div>
+
+                {# ── 邮件 ── #}
+                <div class="tab-pane fade" id="mail">
+                    <div class="row g-3" style="max-width:700px;">
+                        <div class="col-8"><label class="form-label">SMTP 服务器</label>
+                            <input type="text" name="mail_server" class="form-control" value="{{ s.get('mail_server', 'smtp.gmail.com') }}">
+                        </div>
+                        <div class="col-4"><label class="form-label">端口</label>
+                            <input type="number" name="mail_port" class="form-control" value="{{ s.get('mail_port', '587') }}" min="1" max="65535">
+                        </div>
+                        <div class="col-12"><label class="form-label">用户名</label>
+                            <input type="text" name="mail_username" class="form-control" value="{{ s.get('mail_username', '') }}">
+                        </div>
+                        <div class="col-12"><label class="form-label">密码</label>
+                            <input type="password" name="mail_password" class="form-control" value="{{ s.get('mail_password', '') }}">
+                        </div>
+                        <div class="col-12"><label class="form-label">默认发件人</label>
+                            <input type="email" name="mail_default_sender" class="form-control" value="{{ s.get('mail_default_sender', 'noreply@agentapp.local') }}">
+                        </div>
+                        <div class="col-12">
+                            <div class="alert alert-info mb-0">邮件配置也受 .env 文件影响。DB 设置优先，.env 为后备。</div>
+                        </div>
+                    </div>
+                </div>
+
+                {# ── 安全 ── #}
+                <div class="tab-pane fade" id="security">
+                    <div class="row g-3" style="max-width:700px;">
+                        <div class="col-12"><h5 class="border-bottom pb-2">Session 安全</h5></div>
+                        <div class="col-6"><label class="form-label">Session 有效期 (天)</label>
+                            <input type="number" name="session_lifetime_days" class="form-control" value="{{ s.get('session_lifetime_days', '14') }}" min="1" max="365">
+                            <small class="text-muted">需要重启应用后生效</small>
+                        </div>
+                        <div class="col-6"><label class="form-label">Session Cookie Secure</label>
+                            <select name="session_cookie_secure" class="form-select">
+                                <option value="false" {% if s.get('session_cookie_secure', 'false') == 'false' %}selected{% endif %}>关闭（HTTP可用）</option>
+                                <option value="true" {% if s.get('session_cookie_secure', 'false') == 'true' %}selected{% endif %}>开启（仅HTTPS）</option>
+                            </select>
+                            <small class="text-muted">需要重启应用后生效</small>
+                        </div>
+
+                        <div class="col-12 mt-3"><h5 class="border-bottom pb-2">LLM 安全分析</h5></div>
+                        <div class="col-12">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="security_enabled" value="true" class="form-check-input" {% if s.get('security_enabled', 'false') == 'true' %}checked{% endif %} id="chk_security">
+                                <label class="form-check-label" for="chk_security">启用 LLM 安全分析（自动检测攻击行为并应对）</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="security_middleware_enabled" value="true" class="form-check-input" {% if s.get('security_middleware_enabled', 'true') == 'true' %}checked{% endif %} id="chk_security_mw">
+                                <label class="form-check-label" for="chk_security_mw">启用 IP 拦截中间件（自动拦截被封禁IP的请求）</label>
+                            </div>
+                        </div>
+                        <div class="col-6"><label class="form-label">分析间隔 (秒)</label>
+                            <input type="number" name="security_analysis_interval" class="form-control" value="{{ s.get('security_analysis_interval', '300') }}" min="60" max="3600">
+                            <small class="text-muted">每次分析之间的间隔，默认 300 秒（5分钟）</small>
+                        </div>
+                        <div class="col-6"><label class="form-label">低严重度发送邮件</label>
+                            <select name="security_alert_low_send_email" class="form-select">
+                                <option value="false" {% if s.get('security_alert_low_send_email', 'false') == 'false' %}selected{% endif %}>不发送</option>
+                                <option value="true" {% if s.get('security_alert_low_send_email', 'false') == 'true' %}selected{% endif %}>发送</option>
+                            </select>
+                            <small class="text-muted">低严重度攻击是否发送邮件通知</small>
+                        </div>
+
+                        <div class="col-12 mt-3"><h5 class="border-bottom pb-2">安全分析专用模型（可选）</h5></div>
+                        <div class="col-12">
+                            <div class="alert alert-info mb-2">
+                                <small>留空则自动使用系统默认的 LLM 模型进行分析。建议使用便宜的模型（如 glm-4v-flash）以降低成本。</small>
+                            </div>
+                        </div>
+                        <div class="col-12"><label class="form-label">API Key</label>
+                            <input type="password" name="security_llm_api_key" class="form-control" value="{{ s.get('security_llm_api_key', '') }}" placeholder="留空则使用系统默认模型">
+                        </div>
+                        <div class="col-8"><label class="form-label">模型 ID</label>
+                            <input type="text" name="security_llm_model" class="form-control" value="{{ s.get('security_llm_model', '') }}" placeholder="如 glm-4v-flash">
+                        </div>
+                        <div class="col-4"><label class="form-label">API 地址</label>
+                            <input type="text" name="security_llm_api_base" class="form-control" value="{{ s.get('security_llm_api_base', '') }}" placeholder="默认 OpenAI 格式">
+                        </div>
+                    </div>
+                </div>
+
+                {# ── 超时和截断 ── #}
+                <div class="tab-pane fade" id="timeout">
+                    <div class="row g-3" style="max-width:700px;">
+                        <div class="col-6"><label class="form-label">MCP stdio 超时 (s)</label>
+                            <input type="number" name="mcp_tool_timeout" class="form-control" value="{{ s.get('mcp_tool_timeout', '30') }}" min="5" max="300">
+                        </div>
+                        <div class="col-6"><label class="form-label">MCP SSE 发现超时 (s)</label>
+                            <input type="number" name="mcp_sse_discovery_timeout" class="form-control" value="{{ s.get('mcp_sse_discovery_timeout', '30') }}" min="5" max="300">
+                        </div>
+                        <div class="col-6"><label class="form-label">MCP SSE 调用超时 (s)</label>
+                            <input type="number" name="mcp_sse_call_timeout" class="form-control" value="{{ s.get('mcp_sse_call_timeout', '120') }}" min="10" max="600">
+                        </div>
+                        <div class="col-6"><label class="form-label">API 端点超时 (s)</label>
+                            <input type="number" name="api_endpoint_timeout" class="form-control" value="{{ s.get('api_endpoint_timeout', '15') }}" min="5" max="120">
+                        </div>
+                        <div class="col-6"><label class="form-label">Sandbox 输出截断</label>
+                            <input type="number" name="sandbox_output_max_chars" class="form-control" value="{{ s.get('sandbox_output_max_chars', '5000') }}" min="100" max="50000">
+                        </div>
+                        <div class="col-6"><label class="form-label">API 结果截断</label>
+                            <input type="number" name="api_output_max_chars" class="form-control" value="{{ s.get('api_output_max_chars', '3000') }}" min="100" max="50000">
+                        </div>
+                        <div class="col-6"><label class="form-label">PDF 提取截断</label>
+                            <input type="number" name="pdf_extract_max_chars" class="form-control" value="{{ s.get('pdf_extract_max_chars', '30000') }}" min="1000" max="200000">
+                        </div>
+                        <div class="col-6"><label class="form-label">OCR 截断</label>
+                            <input type="number" name="ocr_max_chars" class="form-control" value="{{ s.get('ocr_max_chars', '30000') }}" min="1000" max="200000">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="mt-3"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 保存设置</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

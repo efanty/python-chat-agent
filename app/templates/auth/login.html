@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}登录{% endblock %}
+{% block body %}
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="logo"><i class="fas fa-robot"></i> {{ site_name }}</div>
+        <p class="subtitle">登录您的账户</p>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="mb-3">
+                <label class="form-label">用户名</label>
+                {{ form.username(class="form-control", placeholder="请输入用户名") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label">密码</label>
+                {{ form.password(class="form-control", placeholder="请输入密码") }}
+            </div>
+            <div class="mb-3 form-check">
+                {{ form.remember(class="form-check-input") }}
+                <label class="form-check-label">记住我</label>
+            </div>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+        <div class="text-center mt-3">
+            <a href="{{ url_for('auth.register') }}" class="auth-link">注册新账户</a>
+            <span class="text-muted mx-2">|</span>
+            <a href="{{ url_for('auth.forgot_password') }}" class="auth-link">忘记密码？</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}个人设置{% endblock %}
+{% block body %}
+<div class="chat-container">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <span class="brand"><i class="fas fa-robot"></i> {{ site_name }}</span>
+        </div>
+        <div class="conv-list p-3">
+            <p class="subtitle">个人设置</p>
+            <a href="{{ url_for('chat.index') }}" class="btn btn-outline-light btn-sm w-100 mb-2"><i class="fas fa-comments"></i> 返回对话</a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <i class="fas fa-user-circle"></i>
+                <span>{{ current_user.nickname or current_user.username }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-danger ms-auto"><i class="fas fa-sign-out-alt"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="main-area" style="overflow-y:auto;">
+        <div class="chat-header">
+            <button class="btn btn-sm btn-outline-light d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+            <a href="{{ url_for('chat.index') }}" class="btn btn-sm btn-outline-light d-md-none me-1"><i class="fas fa-arrow-left"></i></a>
+            <h5 class="mb-0">个人设置</h5>
+            <button class="btn-theme-toggle ms-auto" onclick="toggleTheme()" title="切换主题" id="themeToggleProfile"><i class="fas fa-moon"></i></button>
+        </div>
+        <div style="padding:24px;max-width:600px;">
+
+            <!-- Change Password -->
+            <div class="card mb-4" style="background:#1e293b;border:1px solid var(--border-color);border-radius:12px;">
+                <div class="card-body">
+                    <h5><i class="fas fa-key"></i> 修改密码</h5>
+                    <form method="POST" action="{{ url_for('auth.change_password') }}">
+                        {{ pwd_form.hidden_tag() }}
+                        <div class="mb-2">
+                            <label class="form-label small">当前密码</label>
+                            {{ pwd_form.current_password(class="form-control") }}
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">新密码</label>
+                            {{ pwd_form.new_password(class="form-control") }}
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">确认新密码</label>
+                            {{ pwd_form.new_password2(class="form-control") }}
+                        </div>
+                        {{ pwd_form.submit(class="btn btn-primary btn-sm") }}
+                    </form>
+                </div>
+            </div>
+
+            <!-- TOTP Setup -->
+            <div class="card mb-4" style="background:#1e293b;border:1px solid var(--border-color);border-radius:12px;">
+                <div class="card-body">
+                    <h5><i class="fas fa-shield-alt"></i> TOTP 双因素认证</h5>
+                    {% if current_user.totp_enabled %}
+                        <p class="text-success small"><i class="fas fa-check-circle"></i> TOTP已启用</p>
+                        <form method="POST" action="{{ url_for('auth.disable_totp') }}">
+                            {{ totp_disable_form.hidden_tag() }}
+                            <div class="mb-2">
+                                <label class="form-label small">输入TOTP验证码以禁用</label>
+                                {{ totp_disable_form.code(class="form-control", placeholder="6位验证码") }}
+                            </div>
+                            {{ totp_disable_form.submit(class="btn btn-danger btn-sm") }}
+                        </form>
+                    {% else %}
+                        <p class="text-muted small">启用TOTP双因素认证以增强账户安全</p>
+                        <a href="{{ url_for('auth.generate_totp_secret') }}" class="btn btn-primary btn-sm">设置TOTP</a>
+                        {% if current_user.totp_secret %}
+                        <form method="POST" action="{{ url_for('auth.setup_totp') }}" class="mt-2">
+                            {{ totp_setup_form.hidden_tag() }}
+                            <div class="mb-2">
+                                <label class="form-label small">输入TOTP验证码以确认启用</label>
+                                {{ totp_setup_form.code(class="form-control", placeholder="6位验证码") }}
+                            </div>
+                            {{ totp_setup_form.submit(class="btn btn-success btn-sm") }}
+                        </form>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Nickname -->
+            <div class="card mb-4" style="background:#1e293b;border:1px solid var(--border-color);border-radius:12px;">
+                <div class="card-body">
+                    <h5><i class="fas fa-id-badge"></i> 修改昵称</h5>
+                    <p class="text-muted small">当前昵称：<strong>{{ current_user.nickname or current_user.username }}</strong></p>
+                    <form method="POST" action="{{ url_for('auth.update_nickname') }}">
+                        {{ nickname_form.hidden_tag() }}
+                        <div class="mb-2">
+                            <label class="form-label small">新昵称（留空则恢复为用户名）</label>
+                            {{ nickname_form.nickname(class="form-control", placeholder=current_user.username, value=current_user.nickname or "") }}
+                        </div>
+                        {{ nickname_form.submit(class="btn btn-primary btn-sm") }}
+                    </form>
+                </div>
+            </div>
+
+            <!-- Email -->
+            <div class="card mb-4" style="background:#1e293b;border:1px solid var(--border-color);border-radius:12px;">
+                <div class="card-body">
+                    <h5><i class="fas fa-envelope"></i> 更改邮箱</h5>
+                    <p class="text-muted small">当前邮箱：<strong>{{ current_user.email }}</strong>
+                        {% if current_user.email_verified %}<span class="text-success"><i class="fas fa-check-circle"></i> 已验证</span>
+                        {% else %}<span class="text-warning"><i class="fas fa-exclamation-circle"></i> 未验证</span>{% endif %}
+                    </p>
+                    <form method="POST" action="{{ url_for('auth.update_email') }}">
+                        {{ email_form.hidden_tag() }}
+                        <div class="mb-2">
+                            <label class="form-label small">新邮箱地址</label>
+                            {{ email_form.email(class="form-control", placeholder="输入新邮箱") }}
+                        </div>
+                        {{ email_form.submit(class="btn btn-primary btn-sm") }}
+                    </form>
+                </div>
+            </div>
+
+            <!-- Account Info -->
+            <div class="card" style="background:#1e293b;border:1px solid var(--border-color);border-radius:12px;">
+                <div class="card-body">
+                    <h5><i class="fas fa-user"></i> 账户信息</h5>
+                    <p class="small mb-1"><strong>用户名：</strong> {{ current_user.username }}</p>
+                    <p class="small mb-1"><strong>昵称：</strong> {{ current_user.nickname or '未设置' }}</p>
+                    <p class="small mb-1"><strong>邮箱：</strong> {{ current_user.email }}
+                        {% if current_user.email_verified %}<span class="text-success"><i class="fas fa-check-circle"></i> 已验证</span>
+                        {% else %}<span class="text-warning"><i class="fas fa-exclamation-circle"></i> 未验证</span>
+                        <a href="{{ url_for('auth.resend_verification') }}" class="btn btn-sm btn-outline-warning ms-2"><i class="fas fa-envelope"></i> 重新发送验证</a>
+                        {% endif %}
+                    </p>
+                    <p class="small mb-1"><strong>角色：</strong> <span class="badge badge-role {{ current_user.role }}">{{ current_user.role_name }}</span></p>
+                    <p class="small mb-0"><strong>注册时间：</strong> {{ current_user.created_at.strftime('%Y-%m-%d %H:%M') if current_user.created_at else 'N/A' }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends 'todo_base.html' %}
+
+{% block content %}
+    <div class="container-fluid mt-3">
+        <header class="text-center mb-4">
+            <h4 class="text-danger">设置</h4>
+        </header>
+        
+        <div class="setting-form">
+            <h4 class="mb-3">当前用户: {{ current_user.username }}</h4>
+            
+            <table class="table table-bordered">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Total</th>
+                        <th>Done</th>
+                        <th>Active</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <a href="javascript:;" class="text-decoration-none">
+                                <cite>{{ current_user.items|length }}</cite>
+                            </a>
+                        </td>
+                        <td>
+                            <a href="javascript:;" class="text-decoration-none">
+                                <cite>{{ current_user_done_count }}</cite>
+                            </a>
+                        </td>
+                        <td>
+                            <a href="javascript:;" class="text-decoration-none">
+                                <cite>{{ current_user_active_count }}</cite>
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            {% if current_user.username == "admin" %}
+                <hr>
+                <h4 class="mt-4">所有用户</h4>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>Username</th>
+                                <th>Total</th>
+                                <th>Done</th>
+                                <th>Active</th>
+                                <th>Operation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.items|length }}</td>
+                                <td>
+                                    {% set done_count = [] %}
+                                    {% set active_count = [] %}
+                                    {% for i in user.items %}
+                                        {% if i.done == 1 %}
+                                            {% set _ = done_count.append(i) %}
+                                        {% else %}
+                                            {% set _ = active_count.append(i) %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {{ done_count|length }}
+                                </td>
+                                <td>{{ active_count|length }}</td>
+                                <td>
+                                    <a href="#" class="btn btn-sm btn-primary">Edit</a>
+                                    <a href="javascript:del_user_{{ user.id }}()" class="btn btn-sm btn-danger">Delete</a>
+                                    <form method="POST" id="del_user_{{ user.id }}" action="settings" style="display: none;">
+                                        {{ delUserForm.hidden_tag() }}
+                                        {{ delUserForm.user_id(value=user.id) }}
+                                    </form>
+                                    <script>
+                                        function del_user_{{ user.id }}() {
+                                            if (confirm('Are you sure?')) {
+                                                $("#del_user_{{ user.id }}").submit();
+                                            }
+                                        }
+                                    </script>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
